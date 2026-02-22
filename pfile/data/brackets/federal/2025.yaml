@@ -1,0 +1,219 @@
+# Federal Income Tax Data — Tax Year 2025
+# Source: IRS Rev. Proc. 2024-40
+# URL: https://www.irs.gov/pub/irs-drop/rp-24-40.pdf
+# Last verified: 2025-01-01
+
+_meta:
+  source: "IRS Rev. Proc. 2024-40"
+  url: "https://www.irs.gov/pub/irs-drop/rp-24-40.pdf"
+  tax_year: 2025
+  last_verified: "2025-01-01"
+
+# ---------------------------------------------------------------------------
+# Ordinary income tax brackets
+# rate: marginal rate, min: lower bound (inclusive), base: tax on income at min
+# ---------------------------------------------------------------------------
+
+brackets:
+  single:
+    - { rate: 0.10,  min: 0,       base: 0 }
+    - { rate: 0.12,  min: 11925,   base: 1192.50 }
+    - { rate: 0.22,  min: 48475,   base: 5578.50 }
+    - { rate: 0.24,  min: 103350,  base: 17651.50 }
+    - { rate: 0.32,  min: 197300,  base: 40199.50 }
+    - { rate: 0.35,  min: 250525,  base: 57231.00 }
+    - { rate: 0.37,  min: 626350,  base: 188769.75 }
+
+  mfj:
+    - { rate: 0.10,  min: 0,       base: 0 }
+    - { rate: 0.12,  min: 23850,   base: 2385.00 }
+    - { rate: 0.22,  min: 96950,   base: 11157.00 }
+    - { rate: 0.24,  min: 206700,  base: 35302.00 }
+    - { rate: 0.32,  min: 394600,  base: 80398.00 }
+    - { rate: 0.35,  min: 501050,  base: 114462.00 }
+    - { rate: 0.37,  min: 751600,  base: 202154.50 }
+
+  mfs:  # same thresholds as single
+    - { rate: 0.10,  min: 0,       base: 0 }
+    - { rate: 0.12,  min: 11925,   base: 1192.50 }
+    - { rate: 0.22,  min: 48475,   base: 5578.50 }
+    - { rate: 0.24,  min: 103350,  base: 17651.50 }
+    - { rate: 0.32,  min: 197300,  base: 40199.50 }
+    - { rate: 0.35,  min: 250525,  base: 57231.00 }
+    - { rate: 0.37,  min: 626350,  base: 188769.75 }
+
+  hoh:
+    - { rate: 0.10,  min: 0,       base: 0 }
+    - { rate: 0.12,  min: 17000,   base: 1700.00 }
+    - { rate: 0.22,  min: 64850,   base: 7442.00 }
+    - { rate: 0.24,  min: 103350,  base: 15912.00 }
+    - { rate: 0.32,  min: 197300,  base: 38460.00 }
+    - { rate: 0.35,  min: 250500,  base: 55484.00 }
+    - { rate: 0.37,  min: 626350,  base: 187031.50 }
+
+  qss:  # same as MFJ
+    - { rate: 0.10,  min: 0,       base: 0 }
+    - { rate: 0.12,  min: 23850,   base: 2385.00 }
+    - { rate: 0.22,  min: 96950,   base: 11157.00 }
+    - { rate: 0.24,  min: 206700,  base: 35302.00 }
+    - { rate: 0.32,  min: 394600,  base: 80398.00 }
+    - { rate: 0.35,  min: 501050,  base: 114462.00 }
+    - { rate: 0.37,  min: 751600,  base: 202154.50 }
+
+# ---------------------------------------------------------------------------
+# Standard deductions
+# ---------------------------------------------------------------------------
+
+standard_deduction:
+  single: 15000
+  mfj:    30000
+  mfs:    15000
+  hoh:    22500
+  qss:    30000
+  # Additional deduction for age 65+ or blind
+  additional_single: 1600
+  additional_mfj_per_spouse: 1350
+
+# ---------------------------------------------------------------------------
+# Qualified dividends / long-term capital gains tax rates
+# Source: IRC §1(h); Rev. Proc. 2024-40
+# ---------------------------------------------------------------------------
+
+ltcg_rates:
+  single:
+    - { rate: 0.00, min: 0,       max: 48350 }
+    - { rate: 0.15, min: 48350,   max: 533400 }
+    - { rate: 0.20, min: 533400,  max: null }
+  mfj:
+    - { rate: 0.00, min: 0,       max: 96700 }
+    - { rate: 0.15, min: 96700,   max: 600050 }
+    - { rate: 0.20, min: 600050,  max: null }
+  mfs:
+    - { rate: 0.00, min: 0,       max: 48350 }
+    - { rate: 0.15, min: 48350,   max: 300000 }
+    - { rate: 0.20, min: 300000,  max: null }
+  hoh:
+    - { rate: 0.00, min: 0,       max: 64750 }
+    - { rate: 0.15, min: 64750,   max: 566700 }
+    - { rate: 0.20, min: 566700,  max: null }
+  qss:
+    - { rate: 0.00, min: 0,       max: 96700 }
+    - { rate: 0.15, min: 96700,   max: 600050 }
+    - { rate: 0.20, min: 600050,  max: null }
+
+# ---------------------------------------------------------------------------
+# Social Security benefit taxability thresholds
+# Source: IRC §86; IRS Pub. 915
+# ---------------------------------------------------------------------------
+
+social_security:
+  single_hoh_mfs:
+    tier1_lower: 25000   # below: 0% taxable
+    tier1_upper: 34000   # 25k-34k: up to 50% taxable
+    tier2_rate: 0.85     # above 34k: up to 85% taxable
+  mfj_qss:
+    tier1_lower: 32000
+    tier1_upper: 44000
+    tier2_rate: 0.85
+
+# ---------------------------------------------------------------------------
+# Child Tax Credit (CTC)
+# Source: IRC §24; Rev. Proc. 2024-40
+# ---------------------------------------------------------------------------
+
+child_tax_credit:
+  per_child: 2000
+  max_refundable: 1700      # Additional CTC (ACTC) per child
+  phaseout_single_hoh: 200000
+  phaseout_mfj_qss:   400000
+  phaseout_mfs:       200000
+  phaseout_rate: 50         # $50 reduction per $1,000 over threshold
+
+# ---------------------------------------------------------------------------
+# Dependent Care Credit
+# Source: IRC §21; IRS Pub. 503
+# ---------------------------------------------------------------------------
+
+dependent_care:
+  max_expenses_1_child:  3000
+  max_expenses_2_plus:   6000
+  min_credit_rate: 0.20
+  max_credit_rate: 0.35
+  phaseout_start_agi: 15000  # Rate drops from 35% above this AGI
+  # Credit rate = max(0.20, 0.35 - 0.01 * floor((agi - 15000) / 2000))
+
+# ---------------------------------------------------------------------------
+# Net Investment Income Tax (NIIT)
+# Source: IRC §1411
+# ---------------------------------------------------------------------------
+
+niit:
+  rate: 0.038
+  threshold_single:  200000
+  threshold_mfj:     250000
+  threshold_mfs:     125000
+  threshold_hoh:     200000
+
+# ---------------------------------------------------------------------------
+# SE (Self-Employment) Tax
+# Source: IRC §1401; IRC §164(f)
+# ---------------------------------------------------------------------------
+
+self_employment:
+  se_tax_rate: 0.153        # 12.4% SS + 2.9% Medicare
+  ss_wage_base: 176100      # 2025 SS wage base
+  deductible_fraction: 0.50 # 50% of SE tax deductible from gross income
+
+# ---------------------------------------------------------------------------
+# Additional Medicare Tax
+# Source: IRC §3103
+# ---------------------------------------------------------------------------
+
+additional_medicare:
+  rate: 0.009
+  threshold_single:  200000
+  threshold_mfj:     250000
+  threshold_mfs:     125000
+
+# ---------------------------------------------------------------------------
+# Qualified Business Income (QBI) Deduction — §199A
+# Source: IRC §199A; Rev. Proc. 2024-40; IRS Notice 2023-75
+#
+# Simple filers (below threshold): deduction = 20% of total QBI
+# High-income filers (above threshold): W-2 wage limitation phases in
+#   over a $100,000 (MFJ) / $50,000 (others) range.
+# For SSTBs above threshold+range: deduction is $0.
+# For non-SSTBs above threshold+range: lesser of 20%×QBI or W-2 wage cap.
+# Overall cap: 20% of (taxable income - net LTCG - qualified dividends)
+# ---------------------------------------------------------------------------
+
+qbi:
+  rate: 0.20
+  # Thresholds where W-2 wage limitation begins to phase in
+  threshold_mfj:     394600
+  threshold_single:  197300
+  threshold_mfs:     197300
+  threshold_hoh:     197300
+  threshold_qss:     394600
+  # Phase-in range over which limitation applies
+  range_mfj:         100000
+  range_others:       50000
+
+# ---------------------------------------------------------------------------
+# Empire State Child Credit (NY IT-213) — pre-TCJA federal CTC parameters
+# NY uses pre-2017 (pre-TCJA) federal CTC rules to compute the 33% component.
+# Source: NY IT-213-I instructions; Tax Law §606(c-1)
+# ---------------------------------------------------------------------------
+
+empire_state_child_credit:
+  # Pre-TCJA parameters (Public Law 115-97 rolled back for this calculation)
+  pre_tcja_per_child: 1000        # $1,000/child before TCJA doubled it
+  phaseout_mfj_qss:   110000      # MFJ/QSS threshold (pre-TCJA)
+  phaseout_single_hoh: 75000      # Single/HOH threshold
+  phaseout_mfs:        55000      # MFS threshold
+  # Phase-out: 5% of (excess rounded up to next $1,000)
+  phaseout_factor: 0.05
+  # NY credit rate
+  ny_credit_rate: 0.33            # 33% of pre-TCJA CTC
+  # $100/child floor — ONLY available if FAGI ≤ phaseout threshold (line 3 = Yes)
+  per_child_floor: 100
