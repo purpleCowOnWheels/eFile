@@ -29,28 +29,19 @@ def compute_gross_income(
 
     Source: IRC §61; 1040 instructions Lines 1-8.
     """
-    # W-2 wages (all filers combined)
     wages = sum((w.box1_wages for w in w2s), Decimal(0))
+    taxable_interest = schedule_b.total_taxable_interest        # Schedule B line 4
+    ordinary_dividends = schedule_b.total_ordinary_dividends    # Schedule B line 6
 
-    # Interest (Schedule B line 4)
-    taxable_interest = schedule_b.total_taxable_interest
-
-    # Dividends (Schedule B line 6)
-    ordinary_dividends = schedule_b.total_ordinary_dividends
-
-    # Capital gains / losses (Schedule D line 21, capped at -$3,000 loss)
     cap_gain = Decimal(0)
     if schedule_d:
         net = schedule_d.net_capital_gain_loss
         cap_gain = max(net, Decimal("-3000"))  # §1211(b) loss limit
 
-    # K-1 pass-through (Schedule E net)
     k1_income = schedule_e.net if schedule_e else Decimal(0)
-
-    # IRA / pension distributions (1099-R box 2a taxable amount)
     retirement_distributions = sum((f.box2a_taxable_amount for f in f1099_rs), Decimal(0))
 
-    # Social Security (up to 85% taxable — computed after other income is known)
+    # Social Security: taxable portion (up to 85%) is computed after all other income is known.
     net_ss = sum((s.net_benefits for s in ssa_1099s), Decimal(0))
     agi_before_ss = (
         wages + taxable_interest + ordinary_dividends

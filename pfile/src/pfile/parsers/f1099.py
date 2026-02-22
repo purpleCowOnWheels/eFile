@@ -16,6 +16,8 @@ import re
 from decimal import Decimal
 from pathlib import Path
 
+from pydantic import BaseModel
+
 from pfile.models.documents import (
     BrokerageTransaction,
     CoverageType,
@@ -29,8 +31,6 @@ from pfile.models.documents import (
 )
 from pfile.parsers.base import BaseParser
 from pfile.parsers.llm import extract_structured
-
-from pydantic import BaseModel
 
 
 def _d(text: str | None) -> Decimal:
@@ -439,7 +439,11 @@ class F1099_R_Parser(BaseParser[F1099_R]):
             box2b_taxable_amount_not_determined=result.box2b_taxable_amount_not_determined,
             box4_federal_withheld=_d(result.box4_federal_withheld),
             box7_distribution_code=result.box7_distribution_code or "",
-            box9b_total_employee_contributions=_d(result.box9b_total_employee_contributions) or None,
+            box9b_total_employee_contributions=(
+                _d(result.box9b_total_employee_contributions)
+                if result.box9b_total_employee_contributions is not None
+                else None
+            ),
             box14_state_withheld=_d(result.box14_state_withheld),
         )
 

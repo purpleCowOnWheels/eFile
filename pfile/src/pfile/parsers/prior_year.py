@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import re
+from decimal import Decimal
 from pathlib import Path
 
 import pdfplumber
@@ -93,8 +94,7 @@ def _extract_1040_regex(sections: dict[str, str]) -> dict:
     """
     text = "\n".join(sections.get(k, "") for k in ("form_1040_p1", "form_1040_p2"))
 
-    def get(patterns: list[str]) -> "Decimal":
-        from decimal import Decimal
+    def get(patterns: list[str]) -> Decimal:
         for pat in patterns:
             m = re.search(pat, text)
             if m:
@@ -110,8 +110,7 @@ def _extract_1040_regex(sections: dict[str, str]) -> dict:
         sections.get(k, "") for k in ("schedule_1", "schedule_2", "schedule_3")
     )
 
-    def get_s(patterns: list[str]) -> "Decimal":
-        from decimal import Decimal
+    def get_s(patterns: list[str]) -> Decimal:
         for pat in patterns:
             m = re.search(pat, sched_text)
             if m:
@@ -167,7 +166,7 @@ def _extract_1040_regex(sections: dict[str, str]) -> dict:
     }
 
 
-def _number_block(text: str) -> list["Decimal"]:
+def _number_block(text: str) -> list[Decimal]:
     """
     Extract the pure-number block TurboTax prints at the bottom of each IT-201 page.
 
@@ -177,7 +176,6 @@ def _number_block(text: str) -> list["Decimal"]:
       - 12-digit form codes (e.g. 201002244555)
     and return the remaining numbers in order.
     """
-    from decimal import Decimal
     nums: list[Decimal] = []
     for line in text.split("\n"):
         s = line.strip()
@@ -227,8 +225,6 @@ def _extract_it201_regex(sections: dict[str, str]) -> dict | None:
       [5] line 78 (refund amount)
       [6] line 78b (net refund after 529)
     """
-    from decimal import Decimal
-
     p1 = _number_block(sections.get("it201_p1", ""))
     p2 = _number_block(sections.get("it201_p2", ""))
     p4 = _number_block(sections.get("it201_p4", ""))
@@ -259,9 +255,14 @@ def _extract_it201_regex(sections: dict[str, str]) -> dict | None:
     ny_refund = _at(p4, 5) or ny_overpaid
     ny_balance = max(Decimal(0), total_ny_tax - ny_total_payments)
 
-    # Detect itemized: deduction meaningfully differs from standard ($16,050 MFJ)
-    ny_std = Decimal("16050")
-    itemized = bool(ny_deduction and abs(ny_deduction - ny_std) > Decimal("500"))
+    # Detect itemized: deduction differs from ALL common NY standard deductions.
+    # We don't know the filing status here, so compare against all status amounts.
+    # If the extracted deduction matches none within a $500 tolerance, assume itemized.
+    ny_std_amounts = {Decimal("8000"), Decimal("11200"), Decimal("16050")}  # single, HOH, MFJ
+    itemized = bool(
+        ny_deduction
+        and all(abs(ny_deduction - std) > Decimal("500") for std in ny_std_amounts)
+    )
 
     return {
         "federal_agi": federal_agi,
@@ -289,10 +290,6 @@ def _extract_it201_regex(sections: dict[str, str]) -> dict | None:
 def _llm_extract(sections: dict[str, str], tax_year: int) -> dict:
     """Send the collected text to GPT-4o for structured extraction."""
     client = get_client()
-
-    combined = "\n\n========\n\n".join(
-        f"[SECTION: {k}]\n{v}" for k, v in sections.items()
-    )
 
     # LLM only handles IT-201 (complex layout) and carry-forward items.
     # Form 1040 fields are extracted deterministically by regex (see _extract_1040_regex).
@@ -395,8 +392,7 @@ Return ONLY valid JSON matching the schema above.
     return json.loads(response.choices[0].message.content)
 
 
-def _to_decimal(val) -> "Decimal":
-    from decimal import Decimal
+def _to_decimal(val) -> Decimal:
     if val is None:
         return Decimal(0)
     s = str(val).replace(",", "").replace("$", "").strip()

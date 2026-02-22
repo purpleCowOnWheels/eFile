@@ -35,31 +35,18 @@ def compute_schedule_e(
     """
     entries: list[ScheduleEEntry] = []
 
-    for k1 in k1_1120ss:
+    # Guaranteed payments from 1065s are handled separately (Schedule SE);
+    # ordinary income from both entity types flows here identically.
+    for k1 in (*k1_1120ss, *k1_1065s):
         ordinary = k1.box1_ordinary_income
         section_179 = k1.box11_section_179
-        net = ordinary - section_179
         entries.append(ScheduleEEntry(
             entity_name=_entity_name(k1),
             ein=_entity_ein(k1),
             ordinary_income=max(Decimal(0), ordinary),
             ordinary_loss=max(Decimal(0), -ordinary),
             section_179=section_179,
-            net_income=net,
-        ))
-
-    for k1 in k1_1065s:
-        # Guaranteed payments are separately reported; ordinary income goes on E
-        ordinary = k1.box1_ordinary_income
-        section_179 = k1.box11_section_179
-        net = ordinary - section_179
-        entries.append(ScheduleEEntry(
-            entity_name=_entity_name(k1),
-            ein=_entity_ein(k1),
-            ordinary_income=max(Decimal(0), ordinary),
-            ordinary_loss=max(Decimal(0), -ordinary),
-            section_179=section_179,
-            net_income=net,
+            net_income=ordinary - section_179,
         ))
 
     total_income = sum(e.ordinary_income for e in entries)

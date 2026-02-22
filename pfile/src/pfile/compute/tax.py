@@ -3,28 +3,9 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from pathlib import Path
-
-import yaml
 
 from pfile.models.filer import FilingStatus
-
-_DATA = Path(__file__).parents[3] / "data" / "brackets" / "federal"
-
-
-def _load(year: int) -> dict:
-    with (_DATA / f"{year}.yaml").open() as f:
-        return yaml.safe_load(f)
-
-
-def _status_key(status: FilingStatus) -> str:
-    return {
-        FilingStatus.SINGLE: "single",
-        FilingStatus.MFJ:    "mfj",
-        FilingStatus.MFS:    "mfs",
-        FilingStatus.HOH:    "hoh",
-        FilingStatus.QSS:    "qss",
-    }[status]
+from pfile.compute._utils import load_federal as _load, status_key as _status_key
 
 
 def _apply_brackets(income: Decimal, brackets: list[dict]) -> Decimal:
@@ -81,7 +62,9 @@ def qualified_div_ltcg_tax(
     ordinary_base = max(Decimal(0), taxable_income - pref_income)
 
     tax = Decimal(0)
-    remaining = pref_income
+    # IRS Qualified Dividends and Capital Gain Tax Worksheet, step 9:
+    # tax preferential rates on the *lesser* of (QD + LTCG) or taxable income.
+    remaining = min(pref_income, taxable_income)
 
     for band in rates:
         band_max = Decimal(str(band["max"])) if band["max"] else Decimal("Inf")

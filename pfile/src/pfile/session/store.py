@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from pfile.models.session import FilingSession, SessionStatus
+
+log = logging.getLogger(__name__)
 
 
 _DEFAULT_BASE = Path.home() / ".pfile" / "sessions"
@@ -44,7 +47,8 @@ class SessionStore:
         for path in self.base_dir.glob("*.json"):
             try:
                 sessions.append(FilingSession.model_validate_json(path.read_text(encoding="utf-8")))
-            except Exception:
+            except Exception as exc:
+                log.warning("Skipping unreadable session file %s: %s", path.name, exc)
                 continue
         return sorted(sessions, key=lambda s: s.updated_at, reverse=True)
 

@@ -96,19 +96,9 @@ def compute_schedule_d(
     net_short = sum((t.gain_loss for t in short_term), Decimal(0))
     net_long = sum((t.gain_loss for t in long_term), Decimal(0))
 
-    # IRC §1211(b): individuals may deduct capital losses only to the extent of
-    # capital gains, plus up to $3,000 of ordinary income per year.
-    # The loss allowed on the 1040 is therefore limited to max(-3000, net total).
-    net_total = net_short + net_long
-    if net_total < Decimal(-3000):
-        # Apportion the $3,000 limit across short- and long-term proportionally
-        # (IRS uses a specific ordering; for Phase 1 we apply it to short-term first)
-        allowed = Decimal(-3000)
-        if net_short <= allowed:
-            net_short = allowed
-            net_long = Decimal(0)
-        else:
-            net_long = allowed - net_short
+    # Store raw (pre-limit) values — the §1211(b) $3,000 loss limit is applied
+    # in agi.py when computing 1040 Line 7, not here. Schedule D lines 16/17
+    # always show the actual gain or loss before the annual deduction cap.
 
     return ScheduleD(
         short_term_transactions=short_term,

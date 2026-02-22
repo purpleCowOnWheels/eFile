@@ -7,7 +7,7 @@ All computation is pure / side-effect free — the session is never mutated.
 
 from __future__ import annotations
 
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 
 from pfile.models.documents import F1099_B, F1099_DIV, F1099_INT, F1099_R, K1_1065, K1_1120S, SSA_1099, W2
 from pfile.models.forms import (
@@ -32,10 +32,7 @@ from pfile.compute.tax import (
     ordinary_income_tax,
     qualified_div_ltcg_tax,
 )
-
-
-def _round2(d: Decimal) -> Decimal:
-    return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+from pfile.compute._utils import round2 as _round2
 
 
 def _collect(primary: DocumentSet, spouse: DocumentSet | None, doc_type: type) -> list:
@@ -69,9 +66,6 @@ def compute_federal_return(session: FilingSession, year: int = 2025) -> Computed
     status = session.filing_status
     spouse_docs = session.spouse_documents if session.is_mfj else None
 
-    # ------------------------------------------------------------------
-    # Collect all documents across both filers
-    # ------------------------------------------------------------------
     all_w2s: list[W2] = _collect(session.primary_documents, spouse_docs, W2)
     all_int: list[F1099_INT] = _collect(session.primary_documents, spouse_docs, F1099_INT)
     all_div: list[F1099_DIV] = _collect(session.primary_documents, spouse_docs, F1099_DIV)
@@ -81,9 +75,7 @@ def compute_federal_return(session: FilingSession, year: int = 2025) -> Computed
     all_k1_1065: list[K1_1065] = _collect(session.primary_documents, spouse_docs, K1_1065)
     all_k1_1120s: list[K1_1120S] = _collect(session.primary_documents, spouse_docs, K1_1120S)
 
-    # ------------------------------------------------------------------
-    # Schedules — exclude documents held in retirement accounts (IRA/401k)
-    # ------------------------------------------------------------------
+    # Exclude documents held in retirement accounts from schedule computations.
     taxable_int = [f for f in all_int if not f.held_in_ira]
     taxable_div = [f for f in all_div if not f.held_in_ira]
     taxable_b   = [f for f in all_b   if not f.held_in_ira]
@@ -98,9 +90,6 @@ def compute_federal_return(session: FilingSession, year: int = 2025) -> Computed
     # Qualified dividends (needed for preferential tax rate) — taxable accounts only
     qualified_divs = sum((f.box1b_qualified_dividends for f in taxable_div), Decimal(0))
 
-    # ------------------------------------------------------------------
-    # Gross income → AGI
-    # ------------------------------------------------------------------
     gross = compute_gross_income(
         w2s=all_w2s,
         schedule_b=sched_b,
@@ -115,22 +104,14 @@ def compute_federal_return(session: FilingSession, year: int = 2025) -> Computed
     agi, adjustments = compute_agi(gross)
     agi = _round2(agi)
 
-    # ------------------------------------------------------------------
-    # Deductions
-    # ------------------------------------------------------------------
     std_ded = standard_deduction(status, year)
     deduction = std_ded  # Phase 1: standard deduction only
 
-    # ------------------------------------------------------------------
-    # Taxable income (before QBI — QBI deduction depends on taxable income
-    # but taxable income also depends on QBI; IRS uses pre-QBI taxable income
-    # as the base for the wage-limitation computation, which is what we do here)
-    # ------------------------------------------------------------------
+    # QBI deduction depends on taxable income, but taxable income also depends on QBI.
+    # IRS uses pre-QBI taxable income as the base for the wage-limitation, so we compute
+    # it first and pass it into compute_qbi_deduction unchanged.
     taxable_income_pre_qbi = max(Decimal(0), agi - deduction)
 
-    # ------------------------------------------------------------------
-    # QBI deduction (§199A) — reduces taxable income
-    # ------------------------------------------------------------------
     net_ltcg = max(Decimal(0), sched_d.net_long_term)
 
     qbi_deduction = compute_qbi_deduction(
@@ -145,29 +126,17 @@ def compute_federal_return(session: FilingSession, year: int = 2025) -> Computed
 
     taxable_income = max(Decimal(0), taxable_income_pre_qbi - qbi_deduction)
 
-    # ------------------------------------------------------------------
-    # Tax computation
-    # Ordinary income tax less preferential rate on qualified divs + LTCG
-    # ------------------------------------------------------------------
-
-    # Total tax using regular brackets (treating everything as ordinary)
-    regular_tax = ordinary_income_tax(taxable_income, status, year)
-
-    # Preferential tax on qualified dividends + LTCG
+    # Ordinary income tax less preferential rate on qualified divs + LTCG:
+    # compute tax as if everything were ordinary, then replace the pref-income
+    # portion with the 0/15/20% rate.
     pref_tax = qualified_div_ltcg_tax(qualified_divs, net_ltcg, taxable_income, status, year)
-
-    # Tax on ordinary income = regular tax minus the tax that would have been
-    # applied to the pref income at ordinary rates
     ordinary_pref_tax = ordinary_income_tax(
         max(Decimal(0), taxable_income - qualified_divs - net_ltcg),
         status, year,
     )
     income_tax = _round2(ordinary_pref_tax + pref_tax)
 
-    # ------------------------------------------------------------------
-    # Additional taxes
-    # ------------------------------------------------------------------
-    # NIIT: investment income = interest + dividends + capital gains
+    # NIIT: investment income = interest + dividends + capital gains (§1411)
     net_investment_income = (
         sched_b.total_taxable_interest
         + sched_b.total_ordinary_dividends
@@ -183,12 +152,9 @@ def compute_federal_return(session: FilingSession, year: int = 2025) -> Computed
 
     total_tax = _round2(income_tax + niit + amt_tax)
 
-    # ------------------------------------------------------------------
-    # Credits
-    # ------------------------------------------------------------------
     ctc = child_tax_credit(session.dependents, agi, status, year)
 
-    # Dependent care: use box 10 dependent care benefits from W-2 as proxy
+    # Dependent care: box 10 dependent care benefits from W-2 used as proxy for expenses.
     dep_care_expenses = sum((w.box10_dependent_care for w in all_w2s), Decimal(0))
     n_qualifying_children = len([d for d in session.dependents if d.child_tax_credit_eligible])
     dep_care_credit = dependent_care_credit(dep_care_expenses, n_qualifying_children, agi, year)
@@ -196,9 +162,6 @@ def compute_federal_return(session: FilingSession, year: int = 2025) -> Computed
     total_credits = _round2(ctc + dep_care_credit)
     tax_after_credits = max(Decimal(0), total_tax - total_credits)
 
-    # ------------------------------------------------------------------
-    # Payments (withholding from W-2s, 1099s, and estimated tax)
-    # ------------------------------------------------------------------
     w2_withheld = _round2(sum((w.box2_federal_withheld for w in all_w2s), Decimal(0)))
     other_withheld = _round2(
         sum((f.box4_federal_withheld for f in taxable_int), Decimal(0))
@@ -212,15 +175,9 @@ def compute_federal_return(session: FilingSession, year: int = 2025) -> Computed
         w2_withheld + other_withheld + other_withholding_manual + estimated_tax
     )
 
-    # ------------------------------------------------------------------
-    # Balance due or refund
-    # ------------------------------------------------------------------
     balance_due = max(Decimal(0), tax_after_credits - total_payments)
     refund = max(Decimal(0), total_payments - tax_after_credits)
 
-    # ------------------------------------------------------------------
-    # Assemble Form 1040 line items
-    # ------------------------------------------------------------------
     form_1040 = Form1040(
         line1a_w2_wages=_round2(gross["wages"]),
         line2b_taxable_interest=_round2(sched_b.total_taxable_interest),

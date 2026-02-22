@@ -33,28 +33,11 @@ Source: IRC §199A; IRS Rev. Proc. 2024-40; Form 8995-A instructions (2025).
 
 from __future__ import annotations
 
-from decimal import Decimal, ROUND_HALF_UP
-from functools import lru_cache
-from pathlib import Path
-
-import yaml
+from decimal import Decimal
 
 from pfile.models.documents import K1_1065, K1_1120S
 from pfile.models.filer import FilingStatus
-
-
-_DATA = Path(__file__).parents[3] / "data" / "brackets" / "federal"
-
-
-@lru_cache(maxsize=4)
-def _load(year: int) -> dict:
-    path = _DATA / f"{year}.yaml"
-    with path.open() as f:
-        return yaml.safe_load(f)
-
-
-def _r2(d: Decimal) -> Decimal:
-    return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+from pfile.compute._utils import load_federal as _load, round2 as _r2
 
 
 def _qbi_threshold(status: FilingStatus, data: dict) -> tuple[Decimal, Decimal]:
@@ -163,11 +146,11 @@ def compute_qbi_deduction(
     w2_wages = _entity_w2_wages(k1_1120ss, k1_1065s)
     w2_cap = _r2(Decimal("0.50") * w2_wages)
 
-    # If we have no W-2 wage info at all, fall back to tentative (conservative)
+    # If no W-2 wage data is available, fall back to tentative deduction.
+    # NOTE: this likely OVER-computes the deduction for entities with no W-2 wages —
+    # the §199A(b)(2)(B) wage cap would reduce the deduction to $0 above the threshold.
+    # Phase 2 will add an explicit W-2 wages field per entity to fix this.
     if w2_wages == 0:
-        # No wage info — treat as fully limited (deduction = 0 above threshold)
-        # unless we can't distinguish; flag in Phase 2 via SSTB flag.
-        # Phase 1 conservative: use tentative with income cap only.
         limited = tentative
     else:
         # Blend: deduction = tentative - phase_fraction × (tentative - w2_cap)

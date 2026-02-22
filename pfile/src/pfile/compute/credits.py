@@ -2,19 +2,11 @@
 
 from __future__ import annotations
 
+import math
 from decimal import Decimal
-from pathlib import Path
-
-import yaml
 
 from pfile.models.filer import DependentProfile, FilingStatus
-
-_DATA = Path(__file__).parents[3] / "data" / "brackets" / "federal"
-
-
-def _load(year: int) -> dict:
-    with (_DATA / f"{year}.yaml").open() as f:
-        return yaml.safe_load(f)
+from pfile.compute._utils import load_federal as _load
 
 
 def child_tax_credit(
@@ -51,7 +43,6 @@ def child_tax_credit(
 
     if agi > threshold:
         # Reduce by $50 per $1,000 (or fraction thereof) over threshold
-        import math
         excess_thousands = Decimal(str(math.ceil(float((agi - threshold) / 1000))))
         reduction = excess_thousands * phaseout_rate
         total = max(Decimal(0), total - reduction)
@@ -82,8 +73,6 @@ def empire_state_child_credit(
 
     Source: NY Tax Law §606(c-1); NY IT-213-I 2024 instructions.
     """
-    import math
-
     qualifying = [d for d in dependents if d.child_tax_credit_eligible]
     if not qualifying:
         return Decimal(0)
@@ -157,7 +146,6 @@ def dependent_care_credit(
     if agi <= agi_threshold:
         rate = max_rate
     else:
-        import math
         steps = Decimal(str(math.ceil(float((agi - agi_threshold) / 2000))))
         rate = max(min_rate, max_rate - Decimal("0.01") * steps)
 

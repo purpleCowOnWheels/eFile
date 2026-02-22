@@ -7,7 +7,7 @@ Covers Form IT-201 (full-year resident) and Form IT-2 (W-2 summary).
 
 from __future__ import annotations
 
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 
 from pfile.models.documents import W2
 from pfile.models.forms import (
@@ -18,6 +18,7 @@ from pfile.models.forms import (
     IT201,
 )
 from pfile.models.session import FilingSession
+from pfile.compute._utils import round2 as _round2
 from pfile.compute.credits import empire_state_child_credit
 from pfile.compute.state.ny import (
     compute_ny_tax,
@@ -26,9 +27,6 @@ from pfile.compute.state.ny import (
     ny_standard_deduction,
 )
 
-
-def _round2(d: Decimal) -> Decimal:
-    return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def _build_it2(w2s: list[W2]) -> IT2:
@@ -39,26 +37,31 @@ def _build_it2(w2s: list[W2]) -> IT2:
     """
     entries: list[IT2Entry] = []
     for w2 in w2s:
-        if w2.box15_state != "NY" and not w2.box16_state_wages:
-            continue  # skip non-NY W-2 entries
+        if w2.box15_state not in (None, "NY"):
+            continue  # IT-2 is NY-only; exclude W-2s from other states
+        yonkers = (w2.box20_locality or "").strip().upper() == "YONKERS"
         entries.append(IT2Entry(
             employer_name=w2.employer.name,
             employer_ein=w2.employer.ein,
             ny_state_wages=w2.box16_state_wages,
             ny_state_withheld=w2.box17_state_withheld,
-            nyc_local_wages=w2.box18_local_wages,
-            nyc_local_withheld=w2.box19_local_withheld,
+            nyc_local_wages=Decimal(0) if yonkers else w2.box18_local_wages,
+            nyc_local_withheld=Decimal(0) if yonkers else w2.box19_local_withheld,
+            yonkers_wages=w2.box18_local_wages if yonkers else Decimal(0),
+            yonkers_withheld=w2.box19_local_withheld if yonkers else Decimal(0),
         ))
 
     total_ny_wages = sum((e.ny_state_wages for e in entries), Decimal(0))
     total_ny_withheld = sum((e.ny_state_withheld for e in entries), Decimal(0))
     total_nyc_withheld = sum((e.nyc_local_withheld for e in entries), Decimal(0))
+    total_yonkers_withheld = sum((e.yonkers_withheld for e in entries), Decimal(0))
 
     return IT2(
         entries=entries,
         total_ny_wages=_round2(total_ny_wages),
         total_ny_withheld=_round2(total_ny_withheld),
         total_nyc_withheld=_round2(total_nyc_withheld),
+        total_yonkers_withheld=_round2(total_yonkers_withheld),
     )
 
 
@@ -91,51 +94,29 @@ def compute_ny_return(
 
     status = session.filing_status
 
-    # ------------------------------------------------------------------
-    # Collect all W-2s (primary + spouse for MFJ)
-    # ------------------------------------------------------------------
     all_w2s: list[W2] = list(session.primary_documents.w2s)
     if session.is_mfj and session.spouse_documents:
         all_w2s.extend(session.spouse_documents.w2s)
 
-    # ------------------------------------------------------------------
-    # Form IT-2
-    # ------------------------------------------------------------------
     it2 = _build_it2(all_w2s)
 
-    # ------------------------------------------------------------------
-    # NY AGI modifications
-    # ------------------------------------------------------------------
     federal_agi = federal.agi
+    ny_additions = Decimal(0)  # Phase 1: no additions for typical filers
 
-    # NY additions (Phase 1: none for typical filers)
-    ny_additions = Decimal(0)
-
-    # NY subtractions
-    # 1. Social Security — already in gross["taxable_ss"] on federal return;
-    #    we need the TOTAL SS benefits paid (including the non-taxable portion).
-    #    Proxy: pull from federal 1040 line 5b ratio isn't reliable without the
-    #    original SSA-1099. For now, use the taxable SS that *was* included in
-    #    federal AGI and subtract it (conservative: this understates NY
-    #    subtraction when only 50% was taxable federally).
-    #    TODO Phase 3: capture raw SSA-1099 net_benefits for exact calculation.
+    # NY subtractions:
+    # 1. Social Security — NY fully excludes SS. We use the taxable SS amount
+    #    already in federal AGI as a proxy (conservative: understates NY subtraction
+    #    when only 50% was federally taxable). TODO Phase 3: use raw SSA-1099.
     taxable_ss_in_agi = federal.form_1040.line5b_taxable_ss
     ss_subtraction = ny_social_security_subtraction(taxable_ss_in_agi)
 
-    # 2. Government pension exclusion — we don't currently parse 1099-R in depth
-    #    enough to distinguish government pensions. Set to 0; Phase 3 will add.
+    # 2. Government pension exclusion — not yet distinguished from 1099-R.
+    #    Set to 0; Phase 3 will add full parsing.
     pension_sub = Decimal(0)
 
     ny_subtractions = ss_subtraction + pension_sub
-
-    # ------------------------------------------------------------------
-    # NY deduction: itemized (IT-196) overrides standard if provided
-    # ------------------------------------------------------------------
     ny_deduction_override = session.ny_itemized_deduction  # None → use standard
 
-    # ------------------------------------------------------------------
-    # NY tax computation
-    # ------------------------------------------------------------------
     num_dependents = len(session.dependents)
 
     result = compute_ny_tax(
@@ -156,27 +137,16 @@ def compute_ny_return(
     yonkers = _round2(result["yonkers_surcharge"])
     total_ny_tax_before_credits = _round2(result["total_ny_tax"])
 
-    # ------------------------------------------------------------------
-    # NY non-refundable credits — reduce tax (floor at zero)
-    #
-    # Supported keys in session.ny_credits:
-    #   "solar_it255"        — IT-255 solar energy system equipment credit
-    #   "college_tuition"    — College Tuition Credit (IT-272)
-    #   "real_property_tax"  — Real Property Tax Credit (IT-214, low-income)
-    #   "ptet_credit"        — NY Pass-Through Entity Tax credit (Form IT-653)
-    #   "prior_year_credits" — Lump-sum carry from prior-year IT-201 ingest
-    #
-    # NOTE: "empire_state_ctc" should NOT be placed in session.ny_credits —
-    # it is computed automatically below and treated as a refundable payment.
-    # ------------------------------------------------------------------
+    # Non-refundable credits reduce tax to zero floor.
+    # Supported session.ny_credits keys: "solar_it255", "college_tuition",
+    # "real_property_tax", "ptet_credit", "prior_year_credits".
+    # NOTE: "empire_state_ctc" must NOT go here — it is computed below and
+    # added to payments (refundable), not applied against tax.
     ny_credits_applied = _round2(sum(session.ny_credits.values(), Decimal(0)))
     total_ny_tax = max(Decimal(0), total_ny_tax_before_credits - ny_credits_applied)
 
-    # ------------------------------------------------------------------
-    # Empire State Child Credit (IT-213) — REFUNDABLE
-    # Computed automatically from dependents; added to total payments.
+    # Empire State Child Credit (IT-213) — REFUNDABLE; added to total payments.
     # Source: NY Tax Law §606(c-1); IT-213-I 2024 instructions.
-    # ------------------------------------------------------------------
     empire_ctc = _round2(empire_state_child_credit(
         dependents=session.dependents,
         fagi=federal_agi,
@@ -184,23 +154,14 @@ def compute_ny_return(
         year=year,
     ))
 
-    # ------------------------------------------------------------------
-    # Withholding
-    # ------------------------------------------------------------------
     ny_withheld = it2.total_ny_withheld
     nyc_withheld = it2.total_nyc_withheld
     yonkers_withheld = it2.total_yonkers_withheld
     total_ny_payments = _round2(ny_withheld + nyc_withheld + yonkers_withheld + empire_ctc)
 
-    # ------------------------------------------------------------------
-    # Balance / refund
-    # ------------------------------------------------------------------
     balance_due = max(Decimal(0), total_ny_tax - total_ny_payments)
     refund = max(Decimal(0), total_ny_payments - total_ny_tax)
 
-    # ------------------------------------------------------------------
-    # Assemble IT-201
-    # ------------------------------------------------------------------
     it201 = IT201(
         federal_agi=federal_agi,
         ny_additions=ny_additions,

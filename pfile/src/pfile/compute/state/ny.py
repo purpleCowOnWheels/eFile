@@ -3,29 +3,9 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from pathlib import Path
-
-import yaml
 
 from pfile.models.filer import FilingStatus, NYResidencyInfo
-
-# parents[4] = project root (pfile/), which contains data/
-_DATA = Path(__file__).parents[4] / "data" / "brackets" / "ny"
-
-
-def _load(year: int = 2025) -> dict:
-    with (_DATA / f"{year}.yaml").open() as f:
-        return yaml.safe_load(f)
-
-
-def _status_key(status: FilingStatus) -> str:
-    return {
-        FilingStatus.SINGLE: "single",
-        FilingStatus.MFJ:    "mfj",
-        FilingStatus.MFS:    "mfs",
-        FilingStatus.HOH:    "hoh",
-        FilingStatus.QSS:    "qss",
-    }[status]
+from pfile.compute._utils import load_ny as _load, status_key as _status_key
 
 
 def _apply_brackets(income: Decimal, brackets: list[dict]) -> Decimal:
