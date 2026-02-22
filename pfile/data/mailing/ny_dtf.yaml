@@ -1,0 +1,22 @@
+# NY Department of Taxation and Finance mailing addresses — 2025
+# Source: https://www.tax.ny.gov/pit/file/mailing_addresses.htm
+
+it201:
+  balance_due:
+    payable_to: "New York State Income Tax"
+    address:
+      line1: "NYS TAX DEPT"
+      line2: "PO BOX 15555"
+      city: "ALBANY"
+      state: "NY"
+      zip: "12212-5555"
+  refund_or_no_tax:
+    address:
+      line1: "NYS TAX DEPT"
+      line2: "PO BOX 61000"
+      city: "ALBANY"
+      state: "NY"
+      zip: "12261-0001"
+
+it201_v:
+  note: "Attach IT-201-V payment voucher to check. Do not staple."
