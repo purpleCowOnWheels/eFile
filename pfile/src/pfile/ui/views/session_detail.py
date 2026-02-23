@@ -62,23 +62,15 @@ def _render_documents(session: FilingSession, store: SessionStore) -> None:
     st.subheader("Upload Tax Documents")
     st.info(
         "Drop your PDFs here — W-2, 1099-INT/DIV/B/R, K-1 (1065/1120S), SSA-1099, "
-        "Fidelity consolidated 1099. Files are saved instantly; pFile will parse them "
-        "when you run **Compute**.",
+        "Fidelity consolidated 1099. pFile figures out what each document is automatically.",
         icon="ℹ️",
     )
 
-    if session.is_mfj:
-        filer_choice = st.radio("Documents for", ["Primary", "Spouse"], horizontal=True)
-        filer = "primary" if filer_choice == "Primary" else "spouse"
-    else:
-        filer = "primary"
-
-    # ── Upload widget — just saves bytes, no parsing ──────────────────────────
     uploaded = st.file_uploader(
         "Drop PDFs here",
         type="pdf",
         accept_multiple_files=True,
-        key=f"uploader_{sid}_{filer}",
+        key=f"uploader_{sid}",
         label_visibility="collapsed",
     )
 
@@ -87,81 +79,71 @@ def _render_documents(session: FilingSession, store: SessionStore) -> None:
         for f in uploaded:
             data = f.read()
             if data:
-                uploads.save_upload(sid, filer, f.name, data)
+                uploads.save_upload(sid, "inbox", f.name, data)
                 saved.append(f.name)
         if saved:
             names = ", ".join(f"`{n}`" for n in saved)
-            st.success(f"Saved {len(saved)} file(s): {names} — they'll be parsed when you run Compute.")
+            st.success(f"Saved {len(saved)} file(s): {names} — will be parsed when you run Compute.")
 
     # ── Queue overview ────────────────────────────────────────────────────────
     st.divider()
 
-    primary_queue = uploads.list_uploads(sid, "primary")
-    spouse_queue = uploads.list_uploads(sid, "spouse") if session.is_mfj else []
-
-    _render_queue("Primary", primary_queue, sid, "primary")
-    if session.is_mfj:
-        _render_queue("Spouse", spouse_queue, sid, "spouse")
+    inbox = uploads.list_uploads(sid, "inbox")
+    _render_queue(inbox, sid)
 
     # ── Already-parsed documents ──────────────────────────────────────────────
-    if session.primary_documents or session.spouse_documents:
+    if session.primary_documents and session.primary_documents.all_documents():
         st.divider()
         st.subheader("Parsed Documents")
         _render_parsed_summary(session)
 
 
-def _render_queue(label: str, queue: list[Path], session_id: str, filer: str) -> None:
+def _render_queue(queue: list[Path], session_id: str) -> None:
     if not queue:
-        st.caption(f"**{label}**: no files queued.")
+        st.caption("No files queued yet.")
         return
 
-    st.markdown(f"**{label}** — {len(queue)} file(s) pending parse")
+    st.markdown(f"**{len(queue)} file(s) pending parse**")
     for path in queue:
         c1, c2 = st.columns([7, 1])
         with c1:
             size_kb = path.stat().st_size // 1024
             st.markdown(f"📄 `{path.name}` &nbsp; <span style='color:grey'>{size_kb} KB</span>", unsafe_allow_html=True)
         with c2:
-            if st.button("✕", key=f"rm_{session_id}_{filer}_{path.name}", help="Remove"):
-                uploads.remove_upload(session_id, filer, path.name)
+            if st.button("✕", key=f"rm_{session_id}_{path.name}", help="Remove"):
+                uploads.remove_upload(session_id, "inbox", path.name)
                 st.rerun()
 
 
 def _render_parsed_summary(session: FilingSession) -> None:
-    def _show(label: str, ds):
-        if ds is None:
-            return
-        rows = []
-        for w in ds.w2s:
-            rows.append(("W-2", w.employer.name, f"${w.box1_wages:,.2f}"))
-        for f in ds.f1099_ints:
-            rows.append(("1099-INT", f.payer.name, f"${f.box1_interest_income:,.2f}"))
-        for f in ds.f1099_divs:
-            rows.append(("1099-DIV", f.payer.name, f"${f.box1a_total_ordinary_dividends:,.2f}"))
-        for f in ds.f1099_bs:
-            amt = f.aggregate_proceeds or sum(t.proceeds for t in f.transactions)
-            rows.append(("1099-B", f.payer.name, f"${amt:,.2f} proceeds"))
-        for f in ds.f1099_rs:
-            rows.append(("1099-R", f.payer.name, f"${f.box1_gross_distribution:,.2f}"))
-        for f in ds.ssa_1099s:
-            rows.append(("SSA-1099", "Social Security Admin", f"${f.box3_benefits_paid:,.2f}"))
-        for k in ds.k1_1065s:
-            rows.append(("K-1 (1065)", k.partnership.name, f"${k.box1_ordinary_income:,.2f} ordinary"))
-        for k in ds.k1_1120ss:
-            rows.append(("K-1 (1120S)", k.corporation.name, f"${k.box1_ordinary_income:,.2f} ordinary"))
-        if rows:
-            st.markdown(f"**{label}**")
-            st.table({
-                "Type": [r[0] for r in rows],
-                "Payer / Employer": [r[1] for r in rows],
-                "Key Amount": [r[2] for r in rows],
-            })
-        else:
-            st.caption(f"{label}: no documents parsed yet.")
-
-    _show("Primary", session.primary_documents)
-    if session.is_mfj:
-        _show("Spouse", session.spouse_documents)
+    ds = session.primary_documents
+    if not ds:
+        st.caption("No documents parsed yet.")
+        return
+    rows = []
+    for w in ds.w2s:
+        rows.append(("W-2", w.employer.name, f"${w.box1_wages:,.2f}"))
+    for f in ds.f1099_ints:
+        rows.append(("1099-INT", f.payer.name, f"${f.box1_interest_income:,.2f}"))
+    for f in ds.f1099_divs:
+        rows.append(("1099-DIV", f.payer.name, f"${f.box1a_total_ordinary_dividends:,.2f}"))
+    for f in ds.f1099_bs:
+        amt = f.aggregate_proceeds or sum(t.proceeds for t in f.transactions)
+        rows.append(("1099-B", f.payer.name, f"${amt:,.2f} proceeds"))
+    for f in ds.f1099_rs:
+        rows.append(("1099-R", f.payer.name, f"${f.box1_gross_distribution:,.2f}"))
+    for f in ds.ssa_1099s:
+        rows.append(("SSA-1099", "Social Security Admin", f"${f.box3_benefits_paid:,.2f}"))
+    for k in ds.k1_1065s:
+        rows.append(("K-1 (1065)", k.partnership.name, f"${k.box1_ordinary_income:,.2f} ordinary"))
+    for k in ds.k1_1120ss:
+        rows.append(("K-1 (1120S)", k.corporation.name, f"${k.box1_ordinary_income:,.2f} ordinary"))
+    if rows:
+        st.table({
+            "Type": [r[0] for r in rows],
+            "Payer / Employer": [r[1] for r in rows],
+            "Key Amount": [r[2] for r in rows],
+        })
 
 
 def _doc_summary(doc) -> str:
@@ -244,23 +226,16 @@ def _render_compute(session: FilingSession, store: SessionStore) -> None:
 
     st.divider()
 
-    # Queue status banner
-    primary_q = uploads.list_uploads(sid, "primary")
-    spouse_q = uploads.list_uploads(sid, "spouse") if session.is_mfj else []
-    total_queued = len(primary_q) + len(spouse_q)
+    inbox = uploads.list_uploads(sid, "inbox")
+    total_queued = len(inbox)
 
     # ── Queue table ───────────────────────────────────────────────────────────
     if total_queued:
-        all_queued = (
-            [(p, "Primary") for p in primary_q] +
-            [(p, "Spouse")  for p in spouse_q]
-        )
         st.markdown(f"**{total_queued} file(s) ready to parse:**")
         st.dataframe(
             {
-                "File": [p.name for p, _ in all_queued],
-                "Person": [person for _, person in all_queued],
-                "Size": [f"{p.stat().st_size // 1024} KB" for p, _ in all_queued],
+                "File": [p.name for p in inbox],
+                "Size": [f"{p.stat().st_size // 1024} KB" for p in inbox],
             },
             use_container_width=True,
             hide_index=True,
@@ -284,37 +259,26 @@ def _render_compute(session: FilingSession, store: SessionStore) -> None:
 
     parse_errors: list[str] = []
 
-    # ── Step 1: Parse queued PDFs file-by-file with live status ──────────────
-    if primary_q or spouse_q:
-        all_files = (
-            [(p, "primary", session.primary or session.spouse) for p in primary_q] +
-            [(p, "spouse",  session.spouse) for p in spouse_q]
-        )
-
-        results_rows: list[dict] = []   # accumulates rows for the live results table
+    # ── Step 1: Parse inbox file-by-file with live status ────────────────────
+    if inbox:
+        results_rows: list[dict] = []
         results_placeholder = st.empty()
 
         with st.status("Parsing documents…", expanded=True) as parse_status:
-            for path, filer, profile in all_files:
-                person_label = "Primary" if filer == "primary" else "Spouse"
-                st.write(f"⏳ **{path.name}** ({person_label})…")
+            doc_set = session.primary_documents or DocumentSet()
 
-                row: dict = {"File": path.name, "Person": person_label, "Type": "…", "Key Info": ""}
+            for path in inbox:
+                st.write(f"⏳ **{path.name}**…")
+                row: dict = {"File": path.name, "Type": "…", "Key Info": "", "Status": "⏳"}
+                results_rows.append(row)
+                results_placeholder.dataframe(results_rows, use_container_width=True, hide_index=True)
+
                 try:
                     docs = dispatcher_parse(path)
-                    doc_labels = []
-                    doc_set = (
-                        session.primary_documents if filer == "primary" else session.spouse_documents
-                    ) or DocumentSet()
                     for doc in docs:
                         doc_set = _attach(doc_set, doc)
-                        doc_labels.append(_doc_summary(doc))
-                    if filer == "primary":
-                        session.primary_documents = doc_set
-                    else:
-                        session.spouse_documents = doc_set
                     row["Type"] = " + ".join(type(d).__name__ for d in docs)
-                    row["Key Info"] = "  |  ".join(doc_labels)
+                    row["Key Info"] = "  |  ".join(_doc_summary(d) for d in docs)
                     row["Status"] = "✅"
                 except UnknownDocumentError as e:
                     parse_errors.append(f"**{path.name}**: {e}")
@@ -325,10 +289,11 @@ def _render_compute(session: FilingSession, store: SessionStore) -> None:
                     row["Type"] = "Error"
                     row["Status"] = "❌"
 
-                results_rows.append(row)
                 results_placeholder.dataframe(results_rows, use_container_width=True, hide_index=True)
 
-            label = f"Parsed {len(all_files)} file(s)"
+            session.primary_documents = doc_set
+
+            label = f"Parsed {len(inbox)} file(s)"
             if parse_errors:
                 label += f" — {len(parse_errors)} error(s)"
             parse_status.update(
