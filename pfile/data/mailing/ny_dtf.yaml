@@ -1,22 +1,29 @@
-# NY Department of Taxation and Finance mailing addresses — 2025
-# Source: https://www.tax.ny.gov/pit/file/mailing_addresses.htm
+_meta:
+  description: NY DTF mailing addresses and payment instructions
+  updated: 2025-01-01
+  source: "https://www.tax.ny.gov/pit/file/mailing_addresses.htm"
 
 it201:
   balance_due:
-    payable_to: "New York State Income Tax"
     address:
-      line1: "NYS TAX DEPT"
-      line2: "PO BOX 15555"
+      line1: "PO BOX 15555"
       city: "ALBANY"
       state: "NY"
       zip: "12212-5555"
+    payable_to: "New York State Income Tax"
   refund_or_no_tax:
     address:
-      line1: "NYS TAX DEPT"
-      line2: "PO BOX 61000"
+      line1: "PO BOX 61000"
       city: "ALBANY"
       state: "NY"
       zip: "12261-0001"
 
 it201_v:
-  note: "Attach IT-201-V payment voucher to check. Do not staple."
+  note: >
+    Write your SSN, tax year, and "IT-201-V" on your check or money order.
+    Do not staple or clip the check to your return. Mail in a separate envelope
+    if paying separately from the return.
+
+online_payment:
+  url: "https://www.tax.ny.gov/pay/"
+  note: "Pay via Online Services (free ACH from bank account) or credit/debit card (fee applies)."

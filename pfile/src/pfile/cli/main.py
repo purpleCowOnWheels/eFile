@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
 import typer
 from rich.console import Console
@@ -223,7 +224,7 @@ def add_doc(
     session_id: str = typer.Argument(..., help="Session ID"),
     pdf: Path = typer.Argument(..., help="Path to document PDF"),
     filer: str = typer.Option("primary", "--filer", "-f", help="'primary' or 'spouse'"),
-    recompute: bool = typer.Option(True, "--recompute/--no-recompute", help="Re-run computation after adding"),
+    recompute: bool = typer.Option(True, help="Re-run computation after adding"),
 ) -> None:
     """Parse a PDF and add it to an existing session."""
     from pfile.interview.documents import add_document_from_pdf
@@ -256,7 +257,7 @@ def add_doc(
 @app.command()
 def compute(
     session_id: str = typer.Argument(..., help="Session ID"),
-    compare_pdf: Path = typer.Option(None, "--compare", "-c", help="Prior-year return PDF for side-by-side comparison"),
+    compare_pdf: Optional[Path] = typer.Option(None, "--compare", "-c", help="Prior-year return PDF for side-by-side comparison"),
 ) -> None:
     """Run (or re-run) tax computation for a session and show results."""
     session = _load_session(session_id)
@@ -296,7 +297,7 @@ def _run_compare(session: "FilingSession", prior_pdf: Path) -> None:
 @app.command()
 def show(
     session_id: str = typer.Argument(..., help="Session ID"),
-    compare_pdf: Path = typer.Option(None, "--compare", "-c", help="Prior-year return PDF for comparison"),
+    compare_pdf: Optional[Path] = typer.Option(None, "--compare", "-c", help="Prior-year return PDF for comparison"),
 ) -> None:
     """Display a summary of a filing session and computed results."""
     from pfile.interview.documents import show_document_summary
@@ -426,7 +427,7 @@ def list_sessions() -> None:
 def ingest(
     pdf: Path = typer.Argument(..., help="Path to a prior-year tax return PDF"),
     year: int = typer.Option(None, "--year", "-y", help="Tax year (inferred from PDF if omitted)"),
-    save: bool = typer.Option(True, "--save/--no-save", help="Save extracted data as JSON"),
+    save: bool = typer.Option(True, help="Save extracted data as JSON"),
     output: Path = typer.Option(None, "--output", "-o", help="Output JSON path"),
 ) -> None:
     """
@@ -491,20 +492,66 @@ def ingest(
 
 
 # ---------------------------------------------------------------------------
-# pfile generate  (output ZIP — Phase 2)
+# pfile generate
 # ---------------------------------------------------------------------------
 
 @app.command()
 def generate(
     session_id: str = typer.Argument(..., help="Session ID"),
+    out_dir: Optional[Path] = typer.Option(None, "--out", "-o", help="Output directory (default: ~/Desktop)"),
 ) -> None:
-    """Generate the output filing package (filled PDFs + cover sheet). [Phase 2]"""
-    console.print("[yellow]Generate is coming in Phase 2.[/yellow]")
-    console.print("  It will produce a ZIP archive with:")
-    console.print("  • Filled federal 1040 + schedules")
-    console.print("  • Filled NY IT-201 + attachments")
-    console.print("  • Cover sheet with mailing address and payment instructions")
-    console.print("  • Payment vouchers (1040-V, IT-201-V)")
+    """Generate the filing package ZIP (cover sheet, data sheets, vouchers)."""
+    from pfile.output.package import generate_package
+
+    session = _load_session(session_id)
+
+    if not session.computed_federal:
+        console.print("[yellow]No computed results found. Running compute first…[/yellow]")
+        session = _run_computation(session, year=session.tax_year)
+        _save(session)
+
+    if not session.computed_federal:
+        console.print("[red]Computation failed — cannot generate package.[/red]")
+        raise typer.Exit(1)
+
+    output_dir = out_dir or Path.home() / "Desktop"
+    output_dir = output_dir.expanduser().resolve()
+
+    with console.status("Building filing package…"):
+        zip_path = generate_package(
+            session=session,
+            federal=session.computed_federal,
+            ny=session.computed_ny,
+            output_dir=output_dir,
+        )
+
+    federal = session.computed_federal
+    ny = session.computed_ny
+
+    console.print()
+    console.print(Panel(
+        f"[bold green]Filing package created![/bold green]\n\n"
+        f"  [cyan]{zip_path}[/cyan]",
+        title="pFile Generate",
+        border_style="green",
+    ))
+
+    # Quick summary of what's inside
+    table = Table(show_header=False, box=None, padding=(0, 1))
+    table.add_column(style="dim")
+    table.add_column()
+    table.add_row("cover_sheet.pdf", "Filing summary, mailing addresses, checklist")
+    table.add_row("1040_line_items.pdf", "Form 1040 (and IT-201 on page 2) line items")
+    if federal.balance_due > 0:
+        table.add_row("1040v_voucher.pdf", f"Federal payment voucher — ${federal.balance_due:,.2f}")
+    if ny and ny.balance_due > 0:
+        table.add_row("it201v_voucher.pdf", f"NY payment voucher — ${ny.balance_due:,.2f}")
+    table.add_row("README.txt", "Instructions and notes")
+    console.print(table)
+
+    if federal.balance_due > 0 or (ny and ny.balance_due > 0):
+        console.print()
+        console.print("[bold yellow]Payment due April 15 — see cover_sheet.pdf for mailing details.[/bold yellow]")
 
 
 if __name__ == "__main__":
