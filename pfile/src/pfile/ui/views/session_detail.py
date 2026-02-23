@@ -115,12 +115,12 @@ def _render_queue(label: str, queue: list[Path], session_id: str, filer: str) ->
         st.caption(f"**{label}**: no files queued.")
         return
 
-    st.markdown(f"**{label}** — {len(queue)} file(s) queued for parsing")
+    st.markdown(f"**{label}** — {len(queue)} file(s) pending parse")
     for path in queue:
-        c1, c2 = st.columns([6, 1])
+        c1, c2 = st.columns([7, 1])
         with c1:
             size_kb = path.stat().st_size // 1024
-            st.caption(f"📄 {path.name}  ({size_kb} KB)")
+            st.markdown(f"📄 `{path.name}` &nbsp; <span style='color:grey'>{size_kb} KB</span>", unsafe_allow_html=True)
         with c2:
             if st.button("✕", key=f"rm_{session_id}_{filer}_{path.name}", help="Remove"):
                 uploads.remove_upload(session_id, filer, path.name)
@@ -162,6 +162,32 @@ def _render_parsed_summary(session: FilingSession) -> None:
     _show("Primary", session.primary_documents)
     if session.is_mfj:
         _show("Spouse", session.spouse_documents)
+
+
+def _doc_summary(doc) -> str:
+    """Return a short human-readable description of a parsed document."""
+    from pfile.models.documents import F1099_B, F1099_DIV, F1099_INT, F1099_R, K1_1065, K1_1120S, SSA_1099, W2
+    try:
+        if isinstance(doc, W2):
+            return f"W-2 · {doc.employer.name} · ${doc.box1_wages:,.0f} wages"
+        if isinstance(doc, F1099_INT):
+            return f"1099-INT · {doc.payer.name} · ${doc.box1_interest_income:,.2f}"
+        if isinstance(doc, F1099_DIV):
+            return f"1099-DIV · {doc.payer.name} · ${doc.box1a_total_ordinary_dividends:,.2f} ord div"
+        if isinstance(doc, F1099_B):
+            proceeds = doc.aggregate_proceeds or sum(t.proceeds for t in doc.transactions)
+            return f"1099-B · {doc.payer.name} · ${proceeds:,.2f} proceeds"
+        if isinstance(doc, F1099_R):
+            return f"1099-R · {doc.payer.name} · ${doc.box1_gross_distribution:,.2f}"
+        if isinstance(doc, SSA_1099):
+            return f"SSA-1099 · ${doc.box3_benefits_paid:,.2f} benefits"
+        if isinstance(doc, K1_1065):
+            return f"K-1 (1065) · {doc.partnership.name} · ${doc.box1_ordinary_income:,.2f}"
+        if isinstance(doc, K1_1120S):
+            return f"K-1 (1120S) · {doc.corporation.name} · ${doc.box1_ordinary_income:,.2f}"
+    except Exception:
+        pass
+    return type(doc).__name__
 
 
 def _attach(doc_set, doc):
@@ -223,10 +249,21 @@ def _render_compute(session: FilingSession, store: SessionStore) -> None:
     spouse_q = uploads.list_uploads(sid, "spouse") if session.is_mfj else []
     total_queued = len(primary_q) + len(spouse_q)
 
+    # ── Queue table ───────────────────────────────────────────────────────────
     if total_queued:
-        st.info(
-            f"**{total_queued} PDF(s) queued** — they will be parsed automatically when you click Compute below.",
-            icon="📄",
+        all_queued = (
+            [(p, "Primary") for p in primary_q] +
+            [(p, "Spouse")  for p in spouse_q]
+        )
+        st.markdown(f"**{total_queued} file(s) ready to parse:**")
+        st.dataframe(
+            {
+                "File": [p.name for p, _ in all_queued],
+                "Person": [person for _, person in all_queued],
+                "Size": [f"{p.stat().st_size // 1024} KB" for p, _ in all_queued],
+            },
+            use_container_width=True,
+            hide_index=True,
         )
     elif not (session.primary_documents and session.primary_documents.all_documents()):
         st.warning("No documents uploaded yet. Go to the **Documents** tab to add PDFs.", icon="⚠️")
@@ -242,38 +279,66 @@ def _render_compute(session: FilingSession, store: SessionStore) -> None:
         return
 
     from pfile.models.session import DocumentSet
+    from pfile.parsers.dispatcher import UnknownDocumentError
+    from pfile.parsers.dispatcher import parse as dispatcher_parse
 
     parse_errors: list[str] = []
 
-    # ── Step 1: Parse queued PDFs ─────────────────────────────────────────────
+    # ── Step 1: Parse queued PDFs file-by-file with live status ──────────────
     if primary_q or spouse_q:
-        with st.status("Parsing uploaded documents…", expanded=True) as status:
-            for filer, queue in [("primary", primary_q), ("spouse", spouse_q)]:
-                if not queue:
-                    continue
-                st.write(f"Parsing {len(queue)} {filer} document(s)…")
-                doc_set = (
-                    session.primary_documents if filer == "primary" else session.spouse_documents
-                ) or DocumentSet()
+        all_files = (
+            [(p, "primary", session.primary or session.spouse) for p in primary_q] +
+            [(p, "spouse",  session.spouse) for p in spouse_q]
+        )
 
-                docs, errors = uploads.parse_all(sid, filer)
-                for doc in docs:
-                    doc_set = _attach(doc_set, doc)
-                parse_errors.extend(errors)
+        results_rows: list[dict] = []   # accumulates rows for the live results table
+        results_placeholder = st.empty()
 
-                if filer == "primary":
-                    session.primary_documents = doc_set
-                else:
-                    session.spouse_documents = doc_set
+        with st.status("Parsing documents…", expanded=True) as parse_status:
+            for path, filer, profile in all_files:
+                person_label = "Primary" if filer == "primary" else "Spouse"
+                st.write(f"⏳ **{path.name}** ({person_label})…")
 
-                for e in errors:
-                    st.warning(e)
+                row: dict = {"File": path.name, "Person": person_label, "Type": "…", "Key Info": ""}
+                try:
+                    docs = dispatcher_parse(path)
+                    doc_labels = []
+                    doc_set = (
+                        session.primary_documents if filer == "primary" else session.spouse_documents
+                    ) or DocumentSet()
+                    for doc in docs:
+                        doc_set = _attach(doc_set, doc)
+                        doc_labels.append(_doc_summary(doc))
+                    if filer == "primary":
+                        session.primary_documents = doc_set
+                    else:
+                        session.spouse_documents = doc_set
+                    row["Type"] = " + ".join(type(d).__name__ for d in docs)
+                    row["Key Info"] = "  |  ".join(doc_labels)
+                    row["Status"] = "✅"
+                except UnknownDocumentError as e:
+                    parse_errors.append(f"**{path.name}**: {e}")
+                    row["Type"] = "Unknown"
+                    row["Status"] = "⚠️"
+                except Exception as e:
+                    parse_errors.append(f"**{path.name}**: {e}")
+                    row["Type"] = "Error"
+                    row["Status"] = "❌"
 
-            status.update(
-                label=f"Parsed {len(primary_q) + len(spouse_q)} file(s)"
-                      + (f" — {len(parse_errors)} error(s)" if parse_errors else ""),
+                results_rows.append(row)
+                results_placeholder.dataframe(results_rows, use_container_width=True, hide_index=True)
+
+            label = f"Parsed {len(all_files)} file(s)"
+            if parse_errors:
+                label += f" — {len(parse_errors)} error(s)"
+            parse_status.update(
+                label=label,
                 state="complete" if not parse_errors else "error",
+                expanded=True,
             )
+
+        for e in parse_errors:
+            st.warning(e)
 
     # ── Step 2: Run tax engine ────────────────────────────────────────────────
     with st.spinner("Computing federal and NY returns…"):
