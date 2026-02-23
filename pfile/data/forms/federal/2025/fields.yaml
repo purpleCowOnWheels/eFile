@@ -1,0 +1,88 @@
+# Form 1040 (2025) AcroForm field mapping
+# Source: IRS f1040.pdf introspected with PyMuPDF
+# Field names follow the pattern: topmostSubform[0].Page{P}[0].<short_name>
+
+# ── Header / Filer Identity ──────────────────────────────────────────────────
+filing_status:
+  single:         "topmostSubform[0].Page1[0].c1_1[0]"
+  mfj:            "topmostSubform[0].Page1[0].c1_2[0]"
+  mfs_qss_hoh:    "topmostSubform[0].Page1[0].c1_3[0]"
+
+taxpayer:
+  first_name_mi:  "topmostSubform[0].Page1[0].f1_01[0]"
+  last_name:      "topmostSubform[0].Page1[0].f1_02[0]"
+  ssn:            "topmostSubform[0].Page1[0].f1_03[0]"
+
+spouse:
+  first_name_mi:  "topmostSubform[0].Page1[0].f1_05[0]"
+  last_name:      "topmostSubform[0].Page1[0].f1_06[0]"
+  ssn:            "topmostSubform[0].Page1[0].f1_04[0]"
+
+address:
+  street:         "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_20[0]"
+  apt:            "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_21[0]"
+  city:           "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_22[0]"
+  state:          "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_23[0]"
+  zip:            "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_24[0]"
+
+# ── Dependents (up to 4) ─────────────────────────────────────────────────────
+dependents:
+  - first_last:   "topmostSubform[0].Page1[0].Table_Dependents[0].Row1[0].f1_31[0]"
+    ssn:          "topmostSubform[0].Page1[0].Table_Dependents[0].Row1[0].f1_32[0]"
+    relationship: "topmostSubform[0].Page1[0].Table_Dependents[0].Row1[0].f1_33[0]"
+  - first_last:   "topmostSubform[0].Page1[0].Table_Dependents[0].Row2[0].f1_35[0]"
+    ssn:          "topmostSubform[0].Page1[0].Table_Dependents[0].Row2[0].f1_36[0]"
+    relationship: "topmostSubform[0].Page1[0].Table_Dependents[0].Row2[0].f1_37[0]"
+  - first_last:   "topmostSubform[0].Page1[0].Table_Dependents[0].Row3[0].f1_39[0]"
+    ssn:          "topmostSubform[0].Page1[0].Table_Dependents[0].Row3[0].f1_40[0]"
+    relationship: "topmostSubform[0].Page1[0].Table_Dependents[0].Row3[0].f1_41[0]"
+  - first_last:   "topmostSubform[0].Page1[0].Table_Dependents[0].Row4[0].f1_43[0]"
+    ssn:          "topmostSubform[0].Page1[0].Table_Dependents[0].Row4[0].f1_44[0]"
+    relationship: "topmostSubform[0].Page1[0].Table_Dependents[0].Row4[0].f1_45[0]"
+
+# ── Income (Page 1) ──────────────────────────────────────────────────────────
+income:
+  line1a_wages:         "topmostSubform[0].Page1[0].f1_47[0]"
+  line2b_interest:      "topmostSubform[0].Page1[0].f1_53[0]"
+  line3a_qualified_div: "topmostSubform[0].Page1[0].f1_54[0]"
+  line3b_ord_div:       "topmostSubform[0].Page1[0].f1_55[0]"
+  line4b_ira:           "topmostSubform[0].Page1[0].f1_57[0]"
+  line5b_ss_taxable:    "topmostSubform[0].Page1[0].f1_59[0]"
+  line7_cap_gain:       "topmostSubform[0].Page1[0].f1_61[0]"
+  line8_other:          "topmostSubform[0].Page1[0].f1_62[0]"
+  line9_total:          "topmostSubform[0].Page1[0].f1_63[0]"
+  line10_adjustments:   "topmostSubform[0].Page1[0].f1_64[0]"
+  line11_agi:           "topmostSubform[0].Page1[0].f1_65[0]"
+  line12_deduction:     "topmostSubform[0].Page1[0].f1_66[0]"
+  line13_qbi:           "topmostSubform[0].Page1[0].f1_67[0]"
+  line15_taxable:       "topmostSubform[0].Page1[0].f1_69[0]"
+  line15_taxable_alt:   "topmostSubform[0].Page1[0].f1_70[0]"
+
+# ── Tax & Credits (Page 2) ───────────────────────────────────────────────────
+tax:
+  ssn_p2:               "topmostSubform[0].Page2[0].f2_01[0]"
+  line16_tax:           "topmostSubform[0].Page2[0].f2_02[0]"
+  line17_amt:           "topmostSubform[0].Page2[0].f2_03[0]"
+  line18_total:         "topmostSubform[0].Page2[0].f2_04[0]"
+  line19_ctc:           "topmostSubform[0].Page2[0].f2_05[0]"
+  line20_sched3:        "topmostSubform[0].Page2[0].f2_06[0]"
+  line21_credits_sum:   "topmostSubform[0].Page2[0].f2_07[0]"
+  line22_tax_minus_crd: "topmostSubform[0].Page2[0].f2_08[0]"
+  line23_other_tax:     "topmostSubform[0].Page2[0].f2_09[0]"
+  line24_total_tax:     "topmostSubform[0].Page2[0].f2_10[0]"
+
+payments:
+  line25a_w2:           "topmostSubform[0].Page2[0].f2_11[0]"
+  line25b_1099:         "topmostSubform[0].Page2[0].f2_12[0]"
+  line25c_other:        "topmostSubform[0].Page2[0].f2_13[0]"
+  line25d_total:        "topmostSubform[0].Page2[0].f2_14[0]"
+  line26_estimated:     "topmostSubform[0].Page2[0].f2_15[0]"
+  line27_eitc:          "topmostSubform[0].Page2[0].f2_16[0]"
+  line28_ctc_refund:    "topmostSubform[0].Page2[0].f2_17[0]"
+  line33_total_pmts:    "topmostSubform[0].Page2[0].f2_21[0]"
+
+refund:
+  line34_overpay:       "topmostSubform[0].Page2[0].f2_23[0]"
+  line35a_refund:       "topmostSubform[0].Page2[0].f2_24[0]"
+  line37_owed:          "topmostSubform[0].Page2[0].f2_28[0]"
+  line38_penalty:       "topmostSubform[0].Page2[0].f2_29[0]"
