@@ -6,7 +6,7 @@ import re
 from decimal import Decimal
 from pathlib import Path
 
-from pfile.models.documents import ParseConfidence, SSA_1099
+from pfile.models.documents import SSA_1099, ParseConfidence
 from pfile.parsers.base import BaseParser
 
 

@@ -6,7 +6,7 @@ import re
 from decimal import Decimal
 from pathlib import Path
 
-from pfile.models.documents import Box12Entry, EntityInfo, ParseConfidence, W2
+from pfile.models.documents import W2, Box12Entry, EntityInfo, ParseConfidence
 from pfile.parsers.base import BaseParser
 
 

@@ -6,7 +6,6 @@ from decimal import Decimal
 
 from pfile.parsers.w2 import W2Parser
 
-
 # Representative W-2 text — matches ADP / standard IRS layout
 _W2_TEXT = """\
 a Employee's social security number

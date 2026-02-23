@@ -13,8 +13,6 @@ The user can review and adjust each value via the CLI interview before computing
 
 from __future__ import annotations
 
-from decimal import Decimal
-
 from pfile.models.prior_year import PriorYearReturn
 from pfile.models.session import FilingSession
 

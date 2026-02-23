@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from pfile.models.documents import F1099_R, SSA_1099, W2
-from pfile.models.forms import ScheduleB, ScheduleD, ScheduleE
 from pfile.compute.tax import taxable_social_security
+from pfile.models.documents import F1099_R, SSA_1099, W2
 from pfile.models.filer import FilingStatus
+from pfile.models.forms import ScheduleB, ScheduleD, ScheduleE
 
 
 def compute_gross_income(

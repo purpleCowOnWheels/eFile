@@ -41,48 +41,57 @@ dependents:
     relationship: "topmostSubform[0].Page1[0].Table_Dependents[0].Row4[0].f1_45[0]"
 
 # ── Income (Page 1) ──────────────────────────────────────────────────────────
+# Verified with PyMuPDF positional analysis (y-coordinate + neighboring text labels).
+# Lines 1a-1h occupy f1_47-f1_56; lines 2a/2b start at f1_58/f1_59.
 income:
-  line1a_wages:         "topmostSubform[0].Page1[0].f1_47[0]"
-  line2b_interest:      "topmostSubform[0].Page1[0].f1_53[0]"
-  line3a_qualified_div: "topmostSubform[0].Page1[0].f1_54[0]"
-  line3b_ord_div:       "topmostSubform[0].Page1[0].f1_55[0]"
-  line4b_ira:           "topmostSubform[0].Page1[0].f1_57[0]"
-  line5b_ss_taxable:    "topmostSubform[0].Page1[0].f1_59[0]"
-  line7_cap_gain:       "topmostSubform[0].Page1[0].f1_61[0]"
-  line8_other:          "topmostSubform[0].Page1[0].f1_62[0]"
-  line9_total:          "topmostSubform[0].Page1[0].f1_63[0]"
-  line10_adjustments:   "topmostSubform[0].Page1[0].f1_64[0]"
-  line11_agi:           "topmostSubform[0].Page1[0].f1_65[0]"
-  line12_deduction:     "topmostSubform[0].Page1[0].f1_66[0]"
-  line13_qbi:           "topmostSubform[0].Page1[0].f1_67[0]"
-  line15_taxable:       "topmostSubform[0].Page1[0].f1_69[0]"
-  line15_taxable_alt:   "topmostSubform[0].Page1[0].f1_70[0]"
+  line1a_wages:         "topmostSubform[0].Page1[0].f1_47[0]"   # y=450
+  line1z_total_wages:   "topmostSubform[0].Page1[0].f1_57[0]"   # y=558 (add 1a-1h)
+  line2a_tax_exempt:    "topmostSubform[0].Page1[0].f1_58[0]"   # y=570 left
+  line2b_interest:      "topmostSubform[0].Page1[0].f1_59[0]"   # y=570 right
+  line3a_qualified_div: "topmostSubform[0].Page1[0].f1_60[0]"   # y=582 left
+  line3b_ord_div:       "topmostSubform[0].Page1[0].f1_61[0]"   # y=582 right
+  line4a_ira_gross:     "topmostSubform[0].Page1[0].f1_62[0]"   # y=606 left
+  line4b_ira:           "topmostSubform[0].Page1[0].f1_63[0]"   # y=606 right
+  line5a_pension_gross: "topmostSubform[0].Page1[0].f1_65[0]"   # y=630 left
+  line5b_pension:       "topmostSubform[0].Page1[0].f1_66[0]"   # y=630 right
+  line6a_ss_total:      "topmostSubform[0].Page1[0].f1_68[0]"   # y=654 left
+  line6b_ss_taxable:    "topmostSubform[0].Page1[0].f1_69[0]"   # y=654 right
+  line7_cap_gain:       "topmostSubform[0].Page1[0].f1_70[0]"   # y=690
+  line8_other:          "topmostSubform[0].Page1[0].f1_72[0]"   # y=714
+  line9_total:          "topmostSubform[0].Page1[0].f1_73[0]"   # y=726
+  line10_adjustments:   "topmostSubform[0].Page1[0].f1_74[0]"   # y=738
+  line11_agi:           "topmostSubform[0].Page1[0].f1_75[0]"   # y=750
+
+# ── Deductions & Taxable Income (Page 2) ─────────────────────────────────────
+# In the 2025 Form 1040, deduction lines 12-15 are on page 2.
+deductions:
+  line12e_total:        "topmostSubform[0].Page2[0].f2_02[0]"   # y=96 (std+QBI combined)
+  line15_taxable:       "topmostSubform[0].Page2[0].f2_06[0]"   # y=144
 
 # ── Tax & Credits (Page 2) ───────────────────────────────────────────────────
 tax:
-  ssn_p2:               "topmostSubform[0].Page2[0].f2_01[0]"
-  line16_tax:           "topmostSubform[0].Page2[0].f2_02[0]"
-  line17_amt:           "topmostSubform[0].Page2[0].f2_03[0]"
-  line18_total:         "topmostSubform[0].Page2[0].f2_04[0]"
-  line19_ctc:           "topmostSubform[0].Page2[0].f2_05[0]"
-  line20_sched3:        "topmostSubform[0].Page2[0].f2_06[0]"
-  line21_credits_sum:   "topmostSubform[0].Page2[0].f2_07[0]"
-  line22_tax_minus_crd: "topmostSubform[0].Page2[0].f2_08[0]"
-  line23_other_tax:     "topmostSubform[0].Page2[0].f2_09[0]"
-  line24_total_tax:     "topmostSubform[0].Page2[0].f2_10[0]"
+  line16_tax:           "topmostSubform[0].Page2[0].f2_08[0]"   # y=156
+  line17_amt:           "topmostSubform[0].Page2[0].f2_09[0]"   # y=168
+  line18_total:         "topmostSubform[0].Page2[0].f2_10[0]"   # y=180
+  line19_ctc:           "topmostSubform[0].Page2[0].f2_11[0]"   # y=192
+  line20_other_credits: "topmostSubform[0].Page2[0].f2_12[0]"   # y=204
+  line21_credits_sum:   "topmostSubform[0].Page2[0].f2_13[0]"   # y=216
+  line22_tax_minus_crd: "topmostSubform[0].Page2[0].f2_14[0]"   # y=228
+  line23_other_tax:     "topmostSubform[0].Page2[0].f2_15[0]"   # y=240
+  line24_total_tax:     "topmostSubform[0].Page2[0].f2_16[0]"   # y=252
 
 payments:
-  line25a_w2:           "topmostSubform[0].Page2[0].f2_11[0]"
-  line25b_1099:         "topmostSubform[0].Page2[0].f2_12[0]"
-  line25c_other:        "topmostSubform[0].Page2[0].f2_13[0]"
-  line25d_total:        "topmostSubform[0].Page2[0].f2_14[0]"
-  line26_estimated:     "topmostSubform[0].Page2[0].f2_15[0]"
-  line27_eitc:          "topmostSubform[0].Page2[0].f2_16[0]"
-  line28_ctc_refund:    "topmostSubform[0].Page2[0].f2_17[0]"
-  line33_total_pmts:    "topmostSubform[0].Page2[0].f2_21[0]"
+  line25a_w2:           "topmostSubform[0].Page2[0].f2_17[0]"   # y=276
+  line25b_1099:         "topmostSubform[0].Page2[0].f2_18[0]"   # y=288
+  line25c_other:        "topmostSubform[0].Page2[0].f2_19[0]"   # y=300
+  line25d_total:        "topmostSubform[0].Page2[0].f2_20[0]"   # y=312
+  line26_estimated:     "topmostSubform[0].Page2[0].f2_21[0]"   # y=324
+  line27a_eitc:         "topmostSubform[0].Page2[0].f2_23[0]"   # y=360
+  line28_ctc_refund:    "topmostSubform[0].Page2[0].f2_24[0]"   # y=408
+  line33_total_pmts:    "topmostSubform[0].Page2[0].f2_29[0]"   # y=468
 
 refund:
-  line34_overpay:       "topmostSubform[0].Page2[0].f2_23[0]"
-  line35a_refund:       "topmostSubform[0].Page2[0].f2_24[0]"
-  line37_owed:          "topmostSubform[0].Page2[0].f2_28[0]"
-  line38_penalty:       "topmostSubform[0].Page2[0].f2_29[0]"
+  line34_overpay:       "topmostSubform[0].Page2[0].f2_30[0]"   # y=480
+  line35a_refund:       "topmostSubform[0].Page2[0].f2_31[0]"   # y=492
+  line37_owed:          "topmostSubform[0].Page2[0].f2_35[0]"   # y=552
+  line38_penalty:       "topmostSubform[0].Page2[0].f2_36[0]"   # y=564

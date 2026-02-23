@@ -7,7 +7,6 @@ from decimal import Decimal
 from pfile.models.documents import F1099_DIV, F1099_INT
 from pfile.models.forms import ScheduleB
 
-
 # Schedule B is required if total taxable interest > $1,500 or dividends > $1,500,
 # or if you had a foreign account or trust.
 _SCHEDULE_B_THRESHOLD = Decimal("1500")

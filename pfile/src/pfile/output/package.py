@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib.resources
 import tempfile
 import zipfile
 from datetime import date
@@ -11,8 +10,7 @@ from pathlib import Path
 from pfile.models.forms import ComputedFederalReturn, ComputedNYReturn
 from pfile.models.session import FilingSession
 from pfile.output import cover_sheet, data_sheet, vouchers
-from pfile.output.forms import filler
-
+from pfile.output.forms import filler, schedules
 
 _FORMS_DATA = Path(__file__).parent.parent.parent.parent / "data" / "forms"
 
@@ -23,6 +21,7 @@ def generate_package(
     ny: ComputedNYReturn | None,
     output_dir: Path,
     fill_forms: bool = False,
+    include_estimated_tax: bool = True,
 ) -> Path:
     """
     Build the filing package ZIP and return its path.
@@ -69,18 +68,41 @@ def generate_package(
         # Filled official forms (Phase 2)
         if fill_forms:
             year = str(session.tax_year)
-            f1040_tmpl = _FORMS_DATA / "federal" / year / "f1040.pdf"
+            tmpl = _FORMS_DATA / "federal" / year
             it201_tmpl = _FORMS_DATA / "ny" / year / "it201_fill_in.pdf"
 
-            if f1040_tmpl.exists():
+            if (tmpl / "f1040.pdf").exists():
                 f1040_out = tmp_path / "f1040_filled.pdf"
-                filler.fill_1040(session, federal, f1040_tmpl, f1040_out)
+                filler.fill_1040(session, federal, tmpl / "f1040.pdf", f1040_out)
                 files.append((f1040_out, "f1040_filled.pdf"))
+
+            if federal.schedule_b and (tmpl / "f1040sb.pdf").exists():
+                sb_out = tmp_path / "f1040sb_filled.pdf"
+                schedules.fill_schedule_b(session, federal.schedule_b, tmpl / "f1040sb.pdf", sb_out)
+                files.append((sb_out, "f1040sb_filled.pdf"))
+
+            if federal.schedule_d and (tmpl / "f1040sd.pdf").exists():
+                sd_out = tmp_path / "f1040sd_filled.pdf"
+                schedules.fill_schedule_d(session, federal.schedule_d, tmpl / "f1040sd.pdf", sd_out)
+                files.append((sd_out, "f1040sd_filled.pdf"))
+
+            if federal.schedule_e and (tmpl / "f1040se.pdf").exists():
+                se_out = tmp_path / "f1040se_filled.pdf"
+                schedules.fill_schedule_e(session, federal.schedule_e, tmpl / "f1040se.pdf", se_out)
+                files.append((se_out, "f1040se_filled.pdf"))
 
             if ny and it201_tmpl.exists():
                 it201_out = tmp_path / "it201_filled.pdf"
                 filler.fill_it201(session, federal, ny, it201_tmpl, it201_out)
                 files.append((it201_out, "it201_filled.pdf"))
+
+        # 1040-ES estimated tax vouchers for next year
+        if include_estimated_tax and federal.form_1040.line24_total_tax > 0:
+            from pfile.compute.estimated_tax import compute_estimated_tax_for_year
+            es_plan = compute_estimated_tax_for_year(federal, session.filing_status, session.tax_year)
+            es_out = tmp_path / "1040es_vouchers.pdf"
+            vouchers.generate_1040es(session, es_plan, es_out)
+            files.append((es_out, "1040es_vouchers.pdf"))
 
         # README
         readme = tmp_path / "README.txt"

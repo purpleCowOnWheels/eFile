@@ -8,8 +8,6 @@ from typing import Generic, TypeVar
 
 import fitz  # PyMuPDF
 
-from pfile.models.documents import ParseConfidence
-
 T = TypeVar("T")
 
 

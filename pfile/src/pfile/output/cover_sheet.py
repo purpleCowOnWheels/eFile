@@ -8,7 +8,7 @@ from pathlib import Path
 import yaml
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import (
     HRFlowable,
@@ -71,7 +71,6 @@ def generate(
     h2 = ParagraphStyle("h2", parent=styles["Heading2"], textColor=_BLUE, fontSize=12, spaceAfter=2, spaceBefore=10)
     body = ParagraphStyle("body", parent=styles["Normal"], fontSize=10, leading=14)
     small = ParagraphStyle("small", parent=styles["Normal"], fontSize=8.5, leading=12, textColor=_GRAY)
-    bold_body = ParagraphStyle("bold_body", parent=body, fontName="Helvetica-Bold")
     check = ParagraphStyle("check", parent=body, leftIndent=12)
 
     story = []

@@ -22,7 +22,7 @@ console = Console()
 # ---------------------------------------------------------------------------
 
 def _load_session(session_id: str) -> "FilingSession":
-    from pfile.session.store import SessionStore, SessionNotFoundError
+    from pfile.session.store import SessionNotFoundError, SessionStore
     try:
         return SessionStore().load(session_id)
     except SessionNotFoundError:
@@ -93,6 +93,30 @@ def _print_ny_summary(session: "FilingSession") -> None:
     console.print(Panel(t, title="NY IT-201", border_style="green"))
 
 
+def _print_estimated_tax_summary(session: "FilingSession") -> None:
+    federal = session.computed_federal
+    if not federal:
+        return
+    from pfile.compute.estimated_tax import compute_estimated_tax_for_year
+    plan = compute_estimated_tax_for_year(federal, session.filing_status, session.tax_year)
+
+    t = Table(show_header=True, box=None, padding=(0, 2))
+    t.add_column("Quarter", style="dim")
+    t.add_column("Due Date")
+    t.add_column("Payment", justify="right")
+    for q in plan.quarters:
+        t.add_row(f"Q{q.quarter}", q.due_date.strftime("%b %-d, %Y"), f"${q.payment:,.2f}")
+    t.add_row("[bold]Total[/bold]", "", f"[bold]${plan.total:,.2f}[/bold]")
+
+    note = f"  [dim]{plan.method_note}[/dim]"
+    console.print(Panel(
+        t,
+        title=f"1040-ES — {plan.next_tax_year} Estimated Tax",
+        subtitle=note,
+        border_style="yellow",
+    ))
+
+
 # ---------------------------------------------------------------------------
 # pfile new
 # ---------------------------------------------------------------------------
@@ -103,16 +127,16 @@ def new(
     prior: Path = typer.Option(None, "--prior", "-p", help="Path to prior-year return PDF to prefill from"),
 ) -> None:
     """Start a new filing session with a guided interview."""
-    from pfile.interview.filer import (
-        ask_filing_status,
-        ask_taxpayer_profile,
-        ask_spouse_profile,
-        ask_dependents,
-    )
     from pfile.interview.documents import ask_add_documents, show_document_summary
+    from pfile.interview.filer import (
+        ask_dependents,
+        ask_filing_status,
+        ask_spouse_profile,
+        ask_taxpayer_profile,
+    )
     from pfile.interview.overrides import ask_federal_overrides, ask_ny_overrides
-    from pfile.models.session import FilingSession, SessionStatus
     from pfile.models.filer import FilingStatus
+    from pfile.models.session import FilingSession
 
     console.print()
     console.print(Panel(
@@ -167,7 +191,7 @@ def new(
     if prior_path and prior_path.exists():
         from pfile.parsers.prior_year import ingest_prior_year_return
         from pfile.session.prefill import prefill_from_prior_year
-        from pfile.session.suggest import suggest_missing_documents, format_suggestions
+        from pfile.session.suggest import suggest_missing_documents
 
         with console.status("Reading prior-year return…"):
             prior_return = ingest_prior_year_return(prior_path)
@@ -319,6 +343,9 @@ def show(
     if session.computed_ny:
         _print_ny_summary(session)
 
+    if session.computed_federal and session.computed_federal.form_1040.line24_total_tax > 0:
+        _print_estimated_tax_summary(session)
+
     if compare_pdf:
         _run_compare(session, compare_pdf)
 
@@ -336,7 +363,8 @@ def resume(
 ) -> None:
     """Resume an existing session — add documents, update overrides, recompute."""
     import questionary
-    from pfile.interview.documents import ask_add_documents, show_document_summary
+
+    from pfile.interview.documents import ask_add_documents
     from pfile.interview.overrides import ask_federal_overrides, ask_ny_overrides
 
     session = _load_session(session_id)
@@ -434,10 +462,10 @@ def ingest(
     Ingest a prior-year tax return PDF, extract structured data, and suggest
     any documents that may be missing for the current year.
     """
+    from pfile.models.filer import FilingStatus
+    from pfile.models.session import FilingSession
     from pfile.parsers.prior_year import ingest_prior_year_return
     from pfile.session.suggest import suggest_missing_documents
-    from pfile.models.session import FilingSession
-    from pfile.models.filer import FilingStatus
 
     if not pdf.exists():
         console.print(f"[red]File not found:[/red] {pdf}")
@@ -500,6 +528,7 @@ def generate(
     session_id: str = typer.Argument(..., help="Session ID"),
     out_dir: Optional[Path] = typer.Option(None, "--out", "-o", help="Output directory (default: ~/Desktop)"),
     fill_forms: bool = typer.Option(False, "--fill-forms", help="Fill official IRS 1040 and NY IT-201 PDFs"),
+    no_estimated_tax: bool = typer.Option(False, "--no-estimated-tax", help="Skip 1040-ES estimated tax vouchers"),
 ) -> None:
     """Generate the filing package ZIP (cover sheet, data sheets, vouchers)."""
     from pfile.output.package import generate_package
@@ -525,6 +554,7 @@ def generate(
             ny=session.computed_ny,
             output_dir=output_dir,
             fill_forms=fill_forms,
+            include_estimated_tax=not no_estimated_tax,
         )
 
     federal = session.computed_federal

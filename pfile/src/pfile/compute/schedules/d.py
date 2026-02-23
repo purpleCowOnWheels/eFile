@@ -29,19 +29,37 @@ def compute_schedule_d(
 
     # 1099-B transactions
     for form in f1099_bs:
-        for txn in form.transactions:
-            gain_loss = txn.proceeds - (txn.cost_basis or Decimal(0)) - txn.wash_sale_disallowed
-            ct = CapitalTransaction(
-                description=txn.description,
-                proceeds=txn.proceeds,
-                cost_basis=txn.cost_basis or Decimal(0),
+        if form.held_in_ira:
+            # IRA / 401k accounts — gains are not taxable; skip entirely.
+            continue
+
+        if form.transactions:
+            # Individual transaction detail available — use it.
+            for txn in form.transactions:
+                gain_loss = txn.proceeds - (txn.cost_basis or Decimal(0)) - txn.wash_sale_disallowed
+                ct = CapitalTransaction(
+                    description=txn.description,
+                    proceeds=txn.proceeds,
+                    cost_basis=txn.cost_basis or Decimal(0),
+                    gain_loss=gain_loss,
+                    term=txn.term.value,
+                )
+                if txn.term == TermType.LONG:
+                    long_term.append(ct)
+                else:
+                    short_term.append(ct)
+        elif form.aggregate_proceeds is not None:
+            # Broker reported only aggregate totals (common for consolidated forms).
+            # Without term information we default to short-term (conservative).
+            agg_basis = form.aggregate_cost_basis or Decimal(0)
+            gain_loss = form.aggregate_proceeds - agg_basis
+            short_term.append(CapitalTransaction(
+                description=f"{form.payer.name} (aggregate — see Form 8949)",
+                proceeds=form.aggregate_proceeds,
+                cost_basis=agg_basis,
                 gain_loss=gain_loss,
-                term=txn.term.value,
-            )
-            if txn.term == TermType.LONG:
-                long_term.append(ct)
-            else:
-                short_term.append(ct)
+                term="short",
+            ))
 
     # K-1 (1065) capital items
     for k1 in (k1_1065s or []):

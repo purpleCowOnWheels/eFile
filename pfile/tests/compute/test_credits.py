@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-import pytest
-
 from pfile.compute.credits import (
     child_tax_credit,
     dependent_care_credit,

@@ -24,10 +24,9 @@ from typing import Any
 
 import fitz  # PyMuPDF
 
-from pfile.models.filer import FilingStatus, TaxpayerProfile
+from pfile.models.filer import FilingStatus
 from pfile.models.forms import ComputedFederalReturn, ComputedNYReturn
 from pfile.models.session import FilingSession
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -114,53 +113,55 @@ def _build_1040_updates(
         updates[pre + ssn_f] = dep.ssn
         updates[pre + rel_f] = dep.relationship
 
-    # Income (page 1)
-    updates[p1 + "f1_47[0]"] = _money(f.line1a_w2_wages)
-    updates[p1 + "f1_53[0]"] = _money(f.line2b_taxable_interest)
-    updates[p1 + "f1_54[0]"] = _money(f.line3a_qualified_dividends)
-    updates[p1 + "f1_55[0]"] = _money(f.line3b_ordinary_dividends)
-    updates[p1 + "f1_57[0]"] = _money(f.line4b_ira_distributions)
-    updates[p1 + "f1_59[0]"] = _money(f.line5b_taxable_ss)
-    updates[p1 + "f1_61[0]"] = _money(f.line7_capital_gain_loss)
-    updates[p1 + "f1_62[0]"] = _money(f.line8_other_income)
-    updates[p1 + "f1_63[0]"] = _money(f.line9_total_income)
-    updates[p1 + "f1_64[0]"] = _money(f.line10_adjustments)
-    updates[p1 + "f1_65[0]"] = _money(f.line11_agi)
-    updates[p1 + "f1_66[0]"] = _money(f.line12_standard_or_itemized)
-    updates[p1 + "f1_67[0]"] = _money(f.line13_qbi_deduction)
-    updates[p1 + "f1_69[0]"] = _money(f.line15_taxable_income)
-    updates[p1 + "f1_70[0]"] = _money(f.line15_taxable_income)
+    # Income (page 1) — verified field positions via PyMuPDF positional analysis
+    updates[p1 + "f1_47[0]"] = _money(f.line1a_w2_wages)          # line 1a
+    updates[p1 + "f1_57[0]"] = _money(f.line1a_w2_wages)          # line 1z (wages total; Phase 1 = 1a only)
+    updates[p1 + "f1_59[0]"] = _money(f.line2b_taxable_interest)   # line 2b
+    updates[p1 + "f1_60[0]"] = _money(f.line3a_qualified_dividends) # line 3a
+    updates[p1 + "f1_61[0]"] = _money(f.line3b_ordinary_dividends)  # line 3b
+    updates[p1 + "f1_63[0]"] = _money(f.line4b_ira_distributions)  # line 4b
+    updates[p1 + "f1_69[0]"] = _money(f.line5b_taxable_ss)         # line 6b (SS taxable)
+    updates[p1 + "f1_70[0]"] = _money(f.line7_capital_gain_loss)   # line 7
+    updates[p1 + "f1_72[0]"] = _money(f.line8_other_income)        # line 8 (Schedule 1)
+    updates[p1 + "f1_73[0]"] = _money(f.line9_total_income)        # line 9
+    updates[p1 + "f1_74[0]"] = _money(f.line10_adjustments)        # line 10
+    updates[p1 + "f1_75[0]"] = _money(f.line11_agi)                # line 11 (AGI)
+
+    # Deductions & taxable income (page 2 in 2025 form)
+    total_deductions = (f.line12_standard_or_itemized or Decimal(0)) + (f.line13_qbi_deduction or Decimal(0))
+    updates[p2 + "f2_02[0]"] = _money(total_deductions)            # line 12e
+    updates[p2 + "f2_06[0]"] = _money(f.line15_taxable_income)     # line 15
 
     # Tax & credits (page 2)
-    updates[p2 + "f2_02[0]"] = _money(f.line16_tax)
-    updates[p2 + "f2_04[0]"] = _money(f.line16_tax)
-    updates[p2 + "f2_05[0]"] = _money(f.line19_ctc)
-    updates[p2 + "f2_06[0]"] = _money(f.line20_other_credits)
+    updates[p2 + "f2_08[0]"] = _money(f.line16_tax)                # line 16
+    updates[p2 + "f2_10[0]"] = _money(f.line16_tax)                # line 18 = 16+17 (no AMT)
+    updates[p2 + "f2_11[0]"] = _money(f.line19_ctc)                # line 19 (CTC)
+    updates[p2 + "f2_12[0]"] = _money(f.line20_other_credits)      # line 20
     total_credits = (f.line19_ctc or Decimal(0)) + (f.line20_other_credits or Decimal(0))
-    updates[p2 + "f2_07[0]"] = _money(total_credits)
-    updates[p2 + "f2_08[0]"] = _money(max(Decimal(0), f.line16_tax - total_credits))
-    updates[p2 + "f2_10[0]"] = _money(f.line24_total_tax)
+    updates[p2 + "f2_13[0]"] = _money(total_credits)               # line 21 (sum credits)
+    updates[p2 + "f2_14[0]"] = _money(max(Decimal(0), f.line16_tax - total_credits))  # line 22
+    updates[p2 + "f2_16[0]"] = _money(f.line24_total_tax)          # line 24
 
     # Payments (page 2)
-    updates[p2 + "f2_11[0]"] = _money(f.line25a_w2_withheld)
-    updates[p2 + "f2_12[0]"] = _money(f.line25b_1099_withheld)
-    updates[p2 + "f2_13[0]"] = _money(f.line25c_other_withheld)
+    updates[p2 + "f2_17[0]"] = _money(f.line25a_w2_withheld)       # line 25a
+    updates[p2 + "f2_18[0]"] = _money(f.line25b_1099_withheld)     # line 25b
+    updates[p2 + "f2_19[0]"] = _money(f.line25c_other_withheld)    # line 25c
     withheld_total = (
         (f.line25a_w2_withheld or Decimal(0))
         + (f.line25b_1099_withheld or Decimal(0))
         + (f.line25c_other_withheld or Decimal(0))
     )
-    updates[p2 + "f2_14[0]"] = _money(withheld_total)
-    updates[p2 + "f2_15[0]"] = _money(f.line26_estimated_payments)
-    updates[p2 + "f2_21[0]"] = _money(f.line33_total_payments)
+    updates[p2 + "f2_20[0]"] = _money(withheld_total)              # line 25d
+    updates[p2 + "f2_21[0]"] = _money(f.line26_estimated_payments) # line 26
+    updates[p2 + "f2_29[0]"] = _money(f.line33_total_payments)     # line 33
 
     overpay = max(Decimal(0), f.line33_total_payments - f.line24_total_tax)
     owed = max(Decimal(0), f.line24_total_tax - f.line33_total_payments)
     if overpay > 0:
-        updates[p2 + "f2_23[0]"] = _money(overpay)
-        updates[p2 + "f2_24[0]"] = _money(overpay)
+        updates[p2 + "f2_30[0]"] = _money(overpay)                 # line 34
+        updates[p2 + "f2_31[0]"] = _money(overpay)                 # line 35a
     if owed > 0:
-        updates[p2 + "f2_28[0]"] = _money(owed)
+        updates[p2 + "f2_35[0]"] = _money(owed)                    # line 37
 
     return updates
 

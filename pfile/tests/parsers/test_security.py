@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pfile.security import decrypt_session, encrypt_session, is_encrypted, redact_pii
 
-
 # ---------------------------------------------------------------------------
 # PII redaction
 # ---------------------------------------------------------------------------

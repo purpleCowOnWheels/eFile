@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from pfile.compute._utils import load_federal as _load
+from pfile.compute._utils import status_key as _status_key
 from pfile.models.filer import FilingStatus
-from pfile.compute._utils import load_federal as _load, status_key as _status_key
 
 
 def _apply_brackets(income: Decimal, brackets: list[dict]) -> Decimal:

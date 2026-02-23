@@ -9,7 +9,6 @@ from typing import Annotated, Union
 
 from pydantic import BaseModel, Field
 
-
 # ---------------------------------------------------------------------------
 # Shared primitives
 # ---------------------------------------------------------------------------

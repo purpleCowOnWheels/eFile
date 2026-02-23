@@ -19,13 +19,13 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from pfile.models.documents import (
-    BrokerageTransaction,
-    CoverageType,
-    EntityInfo,
     F1099_B,
     F1099_DIV,
     F1099_INT,
     F1099_R,
+    BrokerageTransaction,
+    CoverageType,
+    EntityInfo,
     ParseConfidence,
     TermType,
 )
@@ -301,9 +301,22 @@ class F1099_DIV_Parser(BaseParser[F1099_DIV]):
 
 
 class F1099_B_Parser(BaseParser[F1099_B]):
+    """
+    Parse Form 1099-B from any broker.
+
+    Strategy (in order):
+      1. Fidelity consolidated format — detailed transaction lines parsed by regex.
+      2. Generic IRS-layout — "CUSIP / description ... proceeds ... basis" grid rows.
+      3. LLM fallback — for heavily customised formats (Schwab, Vanguard, etc.).
+    """
+
+    # ------------------------------------------------------------------
+    # Public entry point
+    # ------------------------------------------------------------------
 
     def parse(self, file: Path) -> F1099_B:
         text = self.extract_text(file)
+
         ein = _find(text, r"Payer.*?Fed ID.*?([0-9]{2}-[0-9]{7})", r"([0-9]{2}-[0-9]{7})")
         payer_name = _find(
             text,
@@ -312,12 +325,20 @@ class F1099_B_Parser(BaseParser[F1099_B]):
         )
         payer = EntityInfo(name=payer_name or "", ein=ein)
 
-        transactions = self._parse_transactions(text)
-        agg_withheld = sum(t.federal_withheld for t in transactions)
+        # Try structured regex strategies first
+        transactions = self._parse_fidelity_transactions(text)
+        if not transactions:
+            transactions = self._parse_generic_transactions(text)
 
-        # Aggregate proceeds / basis from the summary table
+        agg_withheld = sum(t.federal_withheld for t in transactions)
         agg_proceeds = self._summary_column(text, 0)
         agg_basis = self._summary_column(text, 1)
+
+        # LLM fallback when we found no transactions and no aggregate totals
+        if not transactions and not agg_proceeds:
+            llm_result = self._llm_fallback(text, payer)
+            if llm_result:
+                return F1099_B(source_file=file, **llm_result)
 
         return F1099_B(
             source_file=file,
@@ -328,6 +349,124 @@ class F1099_B_Parser(BaseParser[F1099_B]):
             aggregate_cost_basis=agg_basis if agg_basis else None,
             aggregate_federal_withheld=agg_withheld,
         )
+
+    # ------------------------------------------------------------------
+    # Generic IRS-layout parser
+    # Handles: Schwab, Vanguard, TD Ameritrade style consolidated 1099-B
+    # where rows follow: description | qty | date acq | date sold | proceeds | basis | gain
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _parse_generic_transactions(text: str) -> list[BrokerageTransaction]:
+        transactions: list[BrokerageTransaction] = []
+        current_term = TermType.UNKNOWN
+        current_coverage = CoverageType.COVERED
+
+        for line in text.splitlines():
+            line = line.strip()
+
+            # Term/coverage section headers (common across most brokers)
+            if re.search(r"short.term.*covered", line, re.IGNORECASE):
+                current_term, current_coverage = TermType.SHORT, CoverageType.COVERED
+            elif re.search(r"short.term.*not\s+reported", line, re.IGNORECASE):
+                current_term, current_coverage = TermType.SHORT, CoverageType.UNCOVERED
+            elif re.search(r"long.term.*covered", line, re.IGNORECASE):
+                current_term, current_coverage = TermType.LONG, CoverageType.COVERED
+            elif re.search(r"long.term.*not\s+reported", line, re.IGNORECASE):
+                current_term, current_coverage = TermType.LONG, CoverageType.UNCOVERED
+
+            # Generic row: description  [qty]  [date]  [date]  proceeds  basis  [gain] [wash]
+            # Matches rows where proceeds and basis are dollar amounts
+            m = re.match(
+                r"^(.+?)\s+"                          # description (greedy, stops before numbers)
+                r"(?:[\d.]+\s+)?"                     # optional quantity
+                r"(?:\d{2}/\d{2}/\d{4}\s+)?"         # optional date acquired
+                r"(?:\d{2}/\d{2}/\d{4}\s+)?"         # optional date sold
+                r"([\d,]+\.\d{2})\s+"                 # proceeds
+                r"([\d,]+\.\d{2})"                    # cost basis
+                r"(?:\s+([-\d,]+\.\d{2}))?"           # optional gain/loss
+                r"(?:\s+([\d,]+\.\d{2}))?",           # optional wash sale
+                line,
+            )
+            if m:
+                desc = m.group(1).strip()
+                proceeds = _d(m.group(2))
+                basis = _d(m.group(3))
+                wash = _d(m.group(5)) if m.group(5) else Decimal(0)
+                gain = proceeds - basis - wash
+                # Filter out header/footer rows masquerading as data
+                if desc and not re.match(r"^(Total|Subtotal|Net|Page|Date)", desc, re.IGNORECASE):
+                    transactions.append(BrokerageTransaction(
+                        description=desc,
+                        proceeds=proceeds,
+                        cost_basis=basis,
+                        gain_loss=gain,
+                        wash_sale_disallowed=wash,
+                        term=current_term,
+                        coverage=current_coverage,
+                    ))
+
+        return transactions
+
+    # ------------------------------------------------------------------
+    # LLM fallback for unrecognised formats
+    # ------------------------------------------------------------------
+
+    class _LLM1099B(BaseModel):
+        payer_name: str | None = None
+        payer_ein: str | None = None
+        aggregate_proceeds: str | None = None
+        aggregate_cost_basis: str | None = None
+        aggregate_federal_withheld: str | None = None
+        net_short_term_gain_loss: str | None = None
+        net_long_term_gain_loss: str | None = None
+
+    def _llm_fallback(self, text: str, payer: EntityInfo) -> dict | None:
+        try:
+            from pfile.parsers.llm import extract_structured
+            result, confidence = extract_structured(
+                text=text,
+                prompt=(
+                    "Extract aggregate totals from this Form 1099-B "
+                    "(Proceeds from Broker Transactions). "
+                    "Return aggregate_proceeds, aggregate_cost_basis, "
+                    "aggregate_federal_withheld, net_short_term_gain_loss, "
+                    "net_long_term_gain_loss as dollar strings."
+                ),
+                model_class=self._LLM1099B,
+            )
+            transactions = []
+            if result.net_short_term_gain_loss:
+                gl = _d(result.net_short_term_gain_loss)
+                proceeds = max(gl, Decimal(0))
+                transactions.append(BrokerageTransaction(
+                    description=f"{payer.name} short-term net (LLM)",
+                    proceeds=proceeds,
+                    cost_basis=max(-gl, Decimal(0)),
+                    term=TermType.SHORT,
+                ))
+            if result.net_long_term_gain_loss:
+                gl = _d(result.net_long_term_gain_loss)
+                proceeds = max(gl, Decimal(0))
+                transactions.append(BrokerageTransaction(
+                    description=f"{payer.name} long-term net (LLM)",
+                    proceeds=proceeds,
+                    cost_basis=max(-gl, Decimal(0)),
+                    term=TermType.LONG,
+                ))
+            return {
+                "confidence": ParseConfidence(scores=confidence),
+                "payer": EntityInfo(
+                    name=result.payer_name or payer.name,
+                    ein=result.payer_ein or payer.ein,
+                ),
+                "transactions": transactions,
+                "aggregate_proceeds": _d(result.aggregate_proceeds),
+                "aggregate_cost_basis": _d(result.aggregate_cost_basis),
+                "aggregate_federal_withheld": _d(result.aggregate_federal_withheld),
+            }
+        except Exception:
+            return None
 
     @staticmethod
     def _summary_column(text: str, col_idx: int) -> Decimal:
@@ -345,7 +484,7 @@ class F1099_B_Parser(BaseParser[F1099_B]):
         return _d(last[col_idx]) if col_idx < len(last) else Decimal(0)
 
     @staticmethod
-    def _parse_transactions(text: str) -> list[BrokerageTransaction]:
+    def _parse_fidelity_transactions(text: str) -> list[BrokerageTransaction]:
         """
         Parse Fidelity's detailed 1099-B transaction lines.
 
@@ -460,7 +599,6 @@ class FidelityConsolidatedParser(BaseParser[tuple[F1099_DIV, F1099_B]]):
     """
 
     def parse(self, file: Path) -> tuple[F1099_DIV, F1099_B]:
-        text = self.extract_text(file)
         div = F1099_DIV_Parser().parse(file)
         b = F1099_B_Parser().parse(file)
         return div, b

@@ -9,24 +9,21 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from pfile.models.documents import W2
-from pfile.models.forms import (
-    ComputedFederalReturn,
-    ComputedNYReturn,
-    IT2,
-    IT2Entry,
-    IT201,
-)
-from pfile.models.session import FilingSession
 from pfile.compute._utils import round2 as _round2
 from pfile.compute.credits import empire_state_child_credit
 from pfile.compute.state.ny import (
     compute_ny_tax,
-    ny_pension_subtraction,
     ny_social_security_subtraction,
-    ny_standard_deduction,
 )
-
+from pfile.models.documents import W2
+from pfile.models.forms import (
+    IT2,
+    IT201,
+    ComputedFederalReturn,
+    ComputedNYReturn,
+    IT2Entry,
+)
+from pfile.models.session import FilingSession
 
 
 def _build_it2(w2s: list[W2]) -> IT2:

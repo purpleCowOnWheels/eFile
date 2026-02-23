@@ -8,10 +8,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from pfile.models.documents import EntityInfo, K1_1065, K1_1120S, ParseConfidence
+from pfile.models.documents import K1_1065, K1_1120S, EntityInfo, ParseConfidence
 from pfile.parsers.base import BaseParser
 from pfile.parsers.llm import extract_structured
-
 
 # ---------------------------------------------------------------------------
 # Intermediate LLM output schemas

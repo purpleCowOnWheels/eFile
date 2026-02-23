@@ -90,7 +90,10 @@ def suggest_missing_documents(
     if f.line7_capital_gain_loss != 0 and b_count == 0:
         suggestions.append(DocumentSuggestion(
             doc_type="Form 1099-B / Consolidated 1099",
-            reason=f"Prior year reported capital gains/losses of ${f.line7_capital_gain_loss:,.2f} — brokerage consolidated statements expected.",
+            reason=(
+                f"Prior year reported capital gains/losses of ${f.line7_capital_gain_loss:,.2f}"
+                " — brokerage consolidated statements expected."
+            ),
             prior_year_amount=f.line7_capital_gain_loss,
             urgency="likely",
         ))
@@ -100,7 +103,10 @@ def suggest_missing_documents(
     if f.line8_other_income > 0 and k1_count == 0:
         suggestions.append(DocumentSuggestion(
             doc_type="Schedule K-1 (Form 1065 or 1120-S)",
-            reason=f"Prior year reported ${f.line8_other_income:,.0f} in pass-through income — K-1(s) expected from partnership(s) or S-corp(s).",
+            reason=(
+                f"Prior year reported ${f.line8_other_income:,.0f} in pass-through income"
+                " — K-1(s) expected from partnership(s) or S-corp(s)."
+            ),
             prior_year_amount=f.line8_other_income,
             urgency="required",
         ))

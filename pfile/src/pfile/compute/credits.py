@@ -5,8 +5,8 @@ from __future__ import annotations
 import math
 from decimal import Decimal
 
-from pfile.models.filer import DependentProfile, FilingStatus
 from pfile.compute._utils import load_federal as _load
+from pfile.models.filer import DependentProfile, FilingStatus
 
 
 def child_tax_credit(

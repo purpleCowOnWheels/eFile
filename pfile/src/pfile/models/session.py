@@ -6,12 +6,10 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 from enum import StrEnum
-from typing import Union
 
 from pydantic import BaseModel, Field
 
 from pfile.models.documents import (
-    AnyDocument,
     F1099_B,
     F1099_DIV,
     F1099_INT,
@@ -20,12 +18,13 @@ from pfile.models.documents import (
     K1_1120S,
     SSA_1099,
     W2,
+    AnyDocument,
 )
 from pfile.models.filer import (
     DependentProfile,
     FilingStatus,
-    TaxpayerProfile,
     SpouseProfile,
+    TaxpayerProfile,
 )
 from pfile.models.forms import ComputedFederalReturn, ComputedNYReturn
 

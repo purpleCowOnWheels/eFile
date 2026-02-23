@@ -9,16 +9,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from pfile.models.documents import F1099_B, F1099_DIV, F1099_INT, F1099_R, K1_1065, K1_1120S, SSA_1099, W2
-from pfile.models.forms import (
-    ComputedFederalReturn,
-    Form1040,
-    ScheduleB,
-    ScheduleD,
-    ScheduleE,
-    ScheduleSE,
-)
-from pfile.models.session import DocumentSet, FilingSession
+from pfile.compute._utils import round2 as _round2
 from pfile.compute.agi import compute_agi, compute_gross_income
 from pfile.compute.credits import child_tax_credit, dependent_care_credit
 from pfile.compute.deductions import standard_deduction
@@ -32,7 +23,21 @@ from pfile.compute.tax import (
     ordinary_income_tax,
     qualified_div_ltcg_tax,
 )
-from pfile.compute._utils import round2 as _round2
+from pfile.models.documents import (
+    F1099_B,
+    F1099_DIV,
+    F1099_INT,
+    F1099_R,
+    K1_1065,
+    K1_1120S,
+    SSA_1099,
+    W2,
+)
+from pfile.models.forms import (
+    ComputedFederalReturn,
+    Form1040,
+)
+from pfile.models.session import DocumentSet, FilingSession
 
 
 def _collect(primary: DocumentSet, spouse: DocumentSet | None, doc_type: type) -> list:

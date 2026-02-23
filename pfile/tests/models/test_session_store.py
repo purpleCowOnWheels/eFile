@@ -3,12 +3,8 @@
 from __future__ import annotations
 
 import json
-import pathlib
-import tempfile
-from decimal import Decimal
 
 import pytest
-
 from pfile.models.filer import FilingStatus
 from pfile.models.session import FilingSession
 from pfile.session.store import SessionNotFoundError, SessionStore
@@ -92,7 +88,6 @@ def test_saved_file_starts_with_fernet_token(store, tmp_path):
 
 
 def test_file_permissions_owner_only(store, tmp_path):
-    import stat
     session = _make_session()
     store.save(session)
     path = tmp_path / f"{session.id}.json"

@@ -35,9 +35,10 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from pfile.compute._utils import load_federal as _load
+from pfile.compute._utils import round2 as _r2
 from pfile.models.documents import K1_1065, K1_1120S
 from pfile.models.filer import FilingStatus
-from pfile.compute._utils import load_federal as _load, round2 as _r2
 
 
 def _qbi_threshold(status: FilingStatus, data: dict) -> tuple[Decimal, Decimal]:

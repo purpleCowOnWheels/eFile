@@ -10,7 +10,6 @@ Used for:
 from __future__ import annotations
 
 from decimal import Decimal
-from pathlib import Path
 
 from pydantic import BaseModel, Field
 

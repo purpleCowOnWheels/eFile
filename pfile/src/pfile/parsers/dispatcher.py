@@ -9,18 +9,9 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Union
 
 from pfile.models.documents import (
     AnyDocument,
-    F1099_B,
-    F1099_DIV,
-    F1099_INT,
-    F1099_R,
-    K1_1065,
-    K1_1120S,
-    SSA_1099,
-    W2,
 )
 from pfile.parsers.base import BaseParser
 from pfile.parsers.f1099 import (

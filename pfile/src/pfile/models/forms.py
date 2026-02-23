@@ -6,7 +6,6 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field, computed_field
 
-
 # ---------------------------------------------------------------------------
 # Federal schedules
 # ---------------------------------------------------------------------------

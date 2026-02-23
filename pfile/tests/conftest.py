@@ -6,8 +6,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
-
-from pfile.models.documents import W2, EntityInfo, F1099_INT, F1099_DIV, SSA_1099
+from pfile.models.documents import W2, EntityInfo
 from pfile.models.filer import (
     Address,
     DependentProfile,

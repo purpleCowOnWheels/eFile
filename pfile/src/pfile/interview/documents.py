@@ -10,7 +10,6 @@ from rich.console import Console
 from rich.table import Table
 
 from pfile.models.documents import (
-    AnyDocument,
     F1099_B,
     F1099_DIV,
     F1099_INT,
@@ -19,6 +18,7 @@ from pfile.models.documents import (
     K1_1120S,
     SSA_1099,
     W2,
+    AnyDocument,
 )
 from pfile.models.session import DocumentSet, FilingSession
 
@@ -136,7 +136,7 @@ def add_document_from_pdf(
     Returns the list of documents parsed (a single consolidated 1099 may
     yield multiple documents).
     """
-    from pfile.parsers.dispatcher import detect, parse, DocumentType
+    from pfile.parsers.dispatcher import detect, parse
 
     console.print(f"\n  [cyan]Parsing[/cyan] {pdf_path.name}…")
 

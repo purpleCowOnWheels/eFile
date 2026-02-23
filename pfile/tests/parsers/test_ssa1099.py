@@ -6,7 +6,6 @@ from decimal import Decimal
 
 from pfile.parsers.ssa1099 import SSA1099Parser
 
-
 _SSA_TEXT_BOX_FORMAT = """\
 SOCIAL SECURITY BENEFIT STATEMENT
 2024 Benefits Statement

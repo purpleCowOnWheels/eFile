@@ -4,13 +4,10 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import pytest
-
 from pfile.compute.engine import compute_federal_return
 from pfile.compute.state.engine_ny import compute_ny_return
 from pfile.models.documents import W2, EntityInfo
-from pfile.models.session import DocumentSet, FilingSession
-from pfile.models.filer import FilingStatus, NYResidencyInfo
+from pfile.models.session import FilingSession
 
 
 def _compute_both(session: FilingSession, year: int = 2024):
@@ -78,7 +75,6 @@ def test_it2_entry_created_for_ny_w2(single_w2_session):
 
 def test_non_ny_w2_excluded_from_it2(single_w2_session):
     """W-2 from another state must not appear on IT-2."""
-    from pfile.models.documents import W2, EntityInfo
     out_of_state = W2(
         employer=EntityInfo(name="California Corp"),
         box1_wages=Decimal("30000"),
@@ -153,7 +149,6 @@ def test_no_nyc_tax_when_not_resident(single_w2_session):
 
 def test_yonkers_withheld_from_w2(single_w2_session):
     """Yonkers local withholding should flow into total_ny_payments."""
-    from pfile.models.documents import W2, EntityInfo
     w2_yonkers = W2(
         employer=EntityInfo(name="Yonkers Corp"),
         box1_wages=Decimal("60000"),

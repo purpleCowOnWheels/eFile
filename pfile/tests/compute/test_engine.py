@@ -5,12 +5,10 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
-
 from pfile.compute.engine import compute_federal_return
-from pfile.models.documents import W2, EntityInfo, F1099_INT, F1099_DIV, SSA_1099
-from pfile.models.session import DocumentSet, FilingSession
+from pfile.models.documents import F1099_DIV, F1099_INT, SSA_1099, W2, EntityInfo
 from pfile.models.filer import FilingStatus
-
+from pfile.models.session import FilingSession
 
 # ---------------------------------------------------------------------------
 # Basic income + tax
@@ -108,8 +106,6 @@ def test_dependent_care_credit_with_expenses(mfj_session):
 
 def test_dependent_care_credit_zero_without_expenses(mfj_session):
     mfj_session.dependent_care_expenses = Decimal("0")
-    result = compute_federal_return(mfj_session, year=2024)
-    # CTC in line19; dep care in line20 other_credits
     # No expenses → no dep care credit
     from pfile.compute.credits import dependent_care_credit
     assert dependent_care_credit(Decimal("0"), 1, Decimal("200000")) == Decimal("0")
@@ -117,7 +113,7 @@ def test_dependent_care_credit_zero_without_expenses(mfj_session):
 
 def test_dependent_care_fsa_reduces_net_expense(mfj_session):
     """Box 10 employer FSA should reduce eligible expense, not replace it."""
-    from pfile.models.documents import W2, EntityInfo
+    from pfile.models.documents import EntityInfo
     # W-2 with $5,000 FSA benefit (box 10)
     w2_with_fsa = W2(
         employer=EntityInfo(name="Acme"),
@@ -175,7 +171,7 @@ def test_large_interest_attaches_schedule_b(single_w2_session):
 
 
 def test_dividend_income_flows_to_1040(single_w2_session):
-    from pfile.models.documents import F1099_DIV, EntityInfo
+    from pfile.models.documents import EntityInfo
     single_w2_session.primary_documents.f1099_divs = [
         F1099_DIV(
             payer=EntityInfo(name="Broker"),
@@ -193,7 +189,6 @@ def test_dividend_income_flows_to_1040(single_w2_session):
 # ---------------------------------------------------------------------------
 
 def test_social_security_partially_taxable(single_w2_session):
-    from pfile.models.documents import SSA_1099
     # Low-income single filer — SS only partially taxable
     low_income_session = single_w2_session.model_copy(deep=True)
     low_income_session.primary_documents.w2s = []
@@ -210,7 +205,6 @@ def test_social_security_partially_taxable(single_w2_session):
 
 
 def test_high_income_ss_85_percent_taxable(single_w2_session):
-    from pfile.models.documents import SSA_1099
     # High combined income → 85% of SS taxable
     single_w2_session.primary_documents.ssa_1099s = [
         SSA_1099(box3_benefits_paid=Decimal("24000"))
