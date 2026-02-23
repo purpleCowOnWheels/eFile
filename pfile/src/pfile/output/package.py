@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.resources
 import tempfile
 import zipfile
 from datetime import date
@@ -10,6 +11,10 @@ from pathlib import Path
 from pfile.models.forms import ComputedFederalReturn, ComputedNYReturn
 from pfile.models.session import FilingSession
 from pfile.output import cover_sheet, data_sheet, vouchers
+from pfile.output.forms import filler
+
+
+_FORMS_DATA = Path(__file__).parent.parent.parent.parent / "data" / "forms"
 
 
 def generate_package(
@@ -17,6 +22,7 @@ def generate_package(
     federal: ComputedFederalReturn,
     ny: ComputedNYReturn | None,
     output_dir: Path,
+    fill_forms: bool = False,
 ) -> Path:
     """
     Build the filing package ZIP and return its path.
@@ -27,6 +33,8 @@ def generate_package(
         it201_line_items.pdf    — NY IT-201 data sheet (if NY return present)
         1040v_voucher.pdf       — Form 1040-V payment voucher (if balance due)
         it201v_voucher.pdf      — NY IT-201-V voucher (if NY balance due)
+        f1040_filled.pdf        — Filled IRS Form 1040 (if fill_forms=True)
+        it201_filled.pdf        — Filled NY IT-201 (if fill_forms=True and NY return)
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -58,9 +66,25 @@ def generate_package(
             vouchers.generate_it201v(session, ny.balance_due, v2)
             files.append((v2, "it201v_voucher.pdf"))
 
+        # Filled official forms (Phase 2)
+        if fill_forms:
+            year = str(session.tax_year)
+            f1040_tmpl = _FORMS_DATA / "federal" / year / "f1040.pdf"
+            it201_tmpl = _FORMS_DATA / "ny" / year / "it201_fill_in.pdf"
+
+            if f1040_tmpl.exists():
+                f1040_out = tmp_path / "f1040_filled.pdf"
+                filler.fill_1040(session, federal, f1040_tmpl, f1040_out)
+                files.append((f1040_out, "f1040_filled.pdf"))
+
+            if ny and it201_tmpl.exists():
+                it201_out = tmp_path / "it201_filled.pdf"
+                filler.fill_it201(session, federal, ny, it201_tmpl, it201_out)
+                files.append((it201_out, "it201_filled.pdf"))
+
         # README
         readme = tmp_path / "README.txt"
-        readme.write_text(_readme_text(session, federal, ny))
+        readme.write_text(_readme_text(session, federal, ny, fill_forms=fill_forms))
         files.append((readme, "README.txt"))
 
         # Pack into ZIP
@@ -83,6 +107,7 @@ def _readme_text(
     session: FilingSession,
     federal: ComputedFederalReturn,
     ny: ComputedNYReturn | None,
+    fill_forms: bool = False,
 ) -> str:
     today = date.today().strftime("%B %d, %Y")
     lines = [
@@ -103,12 +128,26 @@ def _readme_text(
         lines.append(f"1040v_voucher.pdf    — Form 1040-V. Enclose with federal payment of ${federal.balance_due:,.2f}.")
     if ny and ny.balance_due > 0:
         lines.append(f"it201v_voucher.pdf   — Form IT-201-V. Enclose with NY payment of ${ny.balance_due:,.2f}.")
+    if fill_forms:
+        lines.append("f1040_filled.pdf     — IRS Form 1040 filled with computed values.")
+        if ny:
+            lines.append("it201_filled.pdf     — NY IT-201 filled with computed values.")
     lines += [
         "",
         "IMPORTANT NOTES",
         "-" * 40,
-        "• pFile generates data summaries only — it does NOT fill official IRS/DTF PDF forms.",
-        "  You must transfer line items to the official forms before mailing.",
+    ]
+    if fill_forms:
+        lines += [
+            "• Filled forms (f1040_filled.pdf, it201_filled.pdf) are pre-populated with",
+            "  computed values. VERIFY every line before signing and mailing.",
+        ]
+    else:
+        lines += [
+            "• pFile generated data summaries. Transfer line items to the official IRS/DTF",
+            "  forms before mailing. Use --fill-forms to auto-populate official PDFs.",
+        ]
+    lines += [
         "• Sign and date all forms before mailing.",
         "• Keep a copy of everything for your records.",
         "• Mail via USPS Certified Mail with Return Receipt.",

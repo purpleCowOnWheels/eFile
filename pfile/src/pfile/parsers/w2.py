@@ -163,7 +163,11 @@ class W2Parser(BaseParser[W2]):
         # Box 14 — Other (NYPFL, NYSDI, union dues, etc.)
         # Pattern: "LABEL  amount" on same line, label is 3–8 uppercase letters
         # ---------------------------------------------------------------
-        _EXCLUDED_14 = _EXCLUDED_CODES | {"FAST", "USE", "IRS", "COPY", "FORM", "SAFE"}
+        _EXCLUDED_14 = {
+            "NY", "NJ", "CT", "CA", "TX", "PA", "MA", "FL", "WA", "GA",
+            "EIN", "SSN", "TIN", "OMB", "LLC", "INC",
+            "FAST", "USE", "IRS", "COPY", "FORM", "SAFE",
+        }
         box14: dict[str, str] = {}
         for m in re.finditer(r"\b([A-Z]{3,8})\s+([\d,]+\.\d{2})\b", text):
             label, amt = m.group(1), m.group(2)

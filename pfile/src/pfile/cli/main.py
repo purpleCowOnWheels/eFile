@@ -499,6 +499,7 @@ def ingest(
 def generate(
     session_id: str = typer.Argument(..., help="Session ID"),
     out_dir: Optional[Path] = typer.Option(None, "--out", "-o", help="Output directory (default: ~/Desktop)"),
+    fill_forms: bool = typer.Option(False, "--fill-forms", help="Fill official IRS 1040 and NY IT-201 PDFs"),
 ) -> None:
     """Generate the filing package ZIP (cover sheet, data sheets, vouchers)."""
     from pfile.output.package import generate_package
@@ -523,6 +524,7 @@ def generate(
             federal=session.computed_federal,
             ny=session.computed_ny,
             output_dir=output_dir,
+            fill_forms=fill_forms,
         )
 
     federal = session.computed_federal

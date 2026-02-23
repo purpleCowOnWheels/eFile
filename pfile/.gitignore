@@ -1,6 +1,9 @@
 # Test documents (contain personal tax data — never commit)
 data/test_docs/
 
+# Downloaded official IRS / DTF form PDFs (large binaries, fetched at build time)
+data/forms/**/*.pdf
+
 # Python
 __pycache__/
 *.py[cod]

@@ -202,7 +202,8 @@ def compute_ny_tax(
     """
     ny_agi = federal_agi + ny_additions - ny_subtractions
     std_ded = ny_standard_deduction(status, year)
-    ny_deduction = ny_deduction_override if ny_deduction_override is not None else std_ded
+    # Use itemized only when it exceeds the standard deduction — otherwise standard wins.
+    ny_deduction = max(ny_deduction_override, std_ded) if ny_deduction_override is not None else std_ded
     ny_dependent_exemptions = NY_DEPENDENT_EXEMPTION * num_dependents
     ny_taxable_income = max(Decimal(0), ny_agi - ny_deduction - ny_dependent_exemptions)
 

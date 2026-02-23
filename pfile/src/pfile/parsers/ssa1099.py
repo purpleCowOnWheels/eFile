@@ -48,22 +48,22 @@ class SSA1099Parser(BaseParser[SSA_1099]):
             return val
 
         # Box 3: Total benefits paid (gross)
-        # Patterns: "Box 3 $X,XXX.XX" or "Benefits paid...X,XXX.XX" or "3. $X"
+        # Patterns: "Box 3 $X,XXX.XX", "Box 3\n$24,000.00", "Benefits paid...X,XXX.XX"
         box3 = _find_amount(
             text,
-            r"(?:Box\s*3|Total benefits paid)[^\d]*\$?\s*([\d,]+\.\d{2})",
+            r"(?:Box\s*3|Total benefits paid)[\s\S]{0,60}?\$?\s*([\d,]+\.\d{2})",
         )
         if not box3:
             box3 = _find_amount(
                 text,
-                r"\b3\b[^\d\n]{0,40}\$?\s*([\d,]+\.\d{2})",
+                r"\bBox\s+3\b[\s\S]{0,40}?\$?\s*([\d,]+\.\d{2})",
             )
         box3 = scored("box3_benefits_paid", box3)
 
         # Box 4: Benefits repaid (if any — most returns have $0)
         box4 = _find_amount(
             text,
-            r"(?:Box\s*4|Benefits repaid|Medicare premium)[^\d]*\$?\s*([\d,]+\.\d{2})",
+            r"(?:Box\s*4|Benefits repaid|Medicare premium)[\s\S]{0,60}?\$?\s*([\d,]+\.\d{2})",
         )
         box4 = scored("box4_benefits_repaid", box4)
 
@@ -71,7 +71,7 @@ class SSA1099Parser(BaseParser[SSA_1099]):
         box6 = _find_amount(
             text,
             r"(?:Box\s*6|Voluntary federal income tax withheld|Federal income tax withheld)"
-            r"[^\d]*\$?\s*([\d,]+\.\d{2})",
+            r"[\s\S]{0,60}?\$?\s*([\d,]+\.\d{2})",
         )
         box6 = scored("box6_voluntary_federal_withheld", box6)
 
