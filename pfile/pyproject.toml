@@ -21,6 +21,7 @@ pyyaml = "^6.0"
 cryptography = "^46.0.5"
 keyring = "^25.7.0"
 pymupdf = "^1.27.1"
+streamlit = "^1.54.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"
@@ -29,6 +30,7 @@ ruff = "^0.4"
 
 [tool.poetry.scripts]
 pfile = "pfile.cli.main:app"
+pfile-ui = "pfile.ui.launcher:main"
 
 [tool.ruff]
 line-length = 120
@@ -50,6 +52,7 @@ ignore = ["F821"]
 "src/pfile/output/data_sheet.py" = ["E501"]
 "src/pfile/output/package.py" = ["E501"]
 "src/pfile/output/vouchers.py" = ["E501"]
+"src/pfile/ui/**" = ["E501"]
 
 [build-system]
 requires = ["poetry-core"]
