@@ -1,0 +1,59 @@
+[tool.poetry]
+name = "pfile"
+version = "0.1.0"
+description = "Automate US federal tax preparation and paper filing"
+authors = []
+license = "MIT"
+readme = "README.md"
+packages = [{ include = "pfile", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pydantic = "^2.0"
+typer = ">=0.13"
+rich = "^13.0"
+questionary = "^2.0"
+pypdf = "^4.0"
+openai = "^1.0"
+reportlab = "^4.0"
+python-dotenv = "^1.0"
+pyyaml = "^6.0"
+cryptography = "^46.0.5"
+keyring = "^25.7.0"
+pymupdf = "^1.27.1"
+streamlit = "^1.54.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+pytest-cov = "^5.0"
+ruff = "^0.4"
+
+[tool.poetry.scripts]
+pfile = "pfile.cli.main:app"
+pfile-ui = "pfile.ui.launcher:main"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+# F821: ruff can't resolve names imported lazily inside function bodies
+# (TYPE_CHECKING pattern) when from __future__ import annotations is in use.
+ignore = ["F821"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests use multiline text fixtures
+"tests/**" = ["E501"]
+# Modules with unavoidably long display strings / ReportLab calls
+"src/pfile/session/suggest.py" = ["E501"]
+"src/pfile/parsers/prior_year.py" = ["E501"]
+"src/pfile/cli/main.py" = ["E501"]
+"src/pfile/output/data_sheet.py" = ["E501"]
+"src/pfile/output/package.py" = ["E501"]
+"src/pfile/output/vouchers.py" = ["E501"]
+"src/pfile/ui/**" = ["E501"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

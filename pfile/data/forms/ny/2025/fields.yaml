@@ -1,0 +1,94 @@
+# IT-201 (2024/2025) AcroForm field mapping
+# Source: NY DTF it201_fill_in.pdf introspected with PyMuPDF
+# Field names are human-readable (unlike the federal form).
+
+# ── Header / Filer Identity ──────────────────────────────────────────────────
+taxpayer:
+  first_name:     "TP_first_name"
+  middle_initial: "TP_MI"
+  last_name:      "TP_last_name"
+  dob:            "TP_DOB"
+  ssn:            "TP_SSN"
+
+spouse:
+  first_name:     "Spouse_first_name"
+  middle_initial: "Spouse_MI"
+  last_name:      "Spouse_last_name"
+  dob:            "Spouse_DOB"
+  ssn:            "Spouse_SSN"
+
+address:
+  mailing_street: "TP_mail_address"
+  mailing_apt:    "TP_mail_apt"
+  mailing_city:   "TP_mail_city"
+  mailing_state:  "TP_mail_state"
+  mailing_zip:    "TP_mail_zip"
+  county:         "NYS_county_residence"
+
+filing_status:
+  field:  "Filing_status"  # CheckBox group
+
+# ── Dependents ────────────────────────────────────────────────────────────────
+dependents:
+  - first: "H_first1"  mid: "H_middle1"  last: "H_last1"
+    rel:   "H_relationship1"  ssn: "H_dependent_ssn1"  dob: "H_dependent_dob1"
+  - first: "H_first2"  mid: "H_middle2"  last: "H_last2"
+    rel:   "H_relationship2"  ssn: "H_dependent_ssn2"  dob: "H_dependent_dob2"
+  - first: "H_first3"  mid: "H_middle3"  last: "H_last3"
+    rel:   "H_relationship3"  ssn: "H_dependent_ssn3"  dob: "H_dependent_dob3"
+
+# ── Federal Income (Lines 1–20, flowing from federal AGI) ────────────────────
+income:
+  line1_wages:            "Line1"
+  line2_interest:         "Line2"
+  line3_dividends:        "Line3"
+  line4_business:         "Line4"
+  line5_capital_gains:    "Line5"
+  line6_ira:              "Line6"
+  line7_pensions:         "Line7"
+  line8_rent:             "Line8"
+  line9_partnerships:     "Line9"
+  line10_ss:              "Line10"
+  line11_other:           "Line11"
+  line12_total:           "Line12"
+
+# ── NY Modifications ──────────────────────────────────────────────────────────
+modifications:
+  line13_additions:       "Line13"
+  line14_subtotal:        "Line14"
+  line15_subtractions:    "Line15"
+  line16_ny_agi:          "Line16"
+
+# ── Standard / Itemized Deduction ────────────────────────────────────────────
+deductions:
+  line34_deduction:       "Line34"
+  line35_exemptions:      "Line35"
+  line36_taxable:         "Line36"
+  line37_base_tax:        "Line37"
+
+# ── NY Credits & Other Tax ────────────────────────────────────────────────────
+credits:
+  line44_house_credit:    "Line44"
+  line45_child_care:      "Line45"
+  line46_earned_income:   "Line46"
+  line47_total_credits:   "Line47"
+  line48_total_tax:       "Line48"
+
+nyc:
+  line51_nyc_tax:         "Line51"
+  line54a_nyc_addback:    "Line54a"
+  line55_total_ny_tax:    "Line55"
+
+# ── Payments & Withholding ────────────────────────────────────────────────────
+payments:
+  line62_ny_withheld:     "Line62"
+  line63_city_withheld:   "Line63"
+  line66_est_payments:    "Line66"
+  line72_total_payments:  "Line72"
+
+# ── Refund / Balance Due ──────────────────────────────────────────────────────
+result:
+  line75_overpay:         "Line75"
+  line77_refund:          "Line77"
+  line78a_refund_amount:  "Line78a"
+  line79_amt_owed:        "Line79"
