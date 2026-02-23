@@ -112,6 +112,11 @@ class FilingSession(BaseModel):
     # Keys are credit names ("solar_it255", "empire_state_ctc", etc.)
     ny_credits: dict[str, Decimal] = Field(default_factory=dict)
 
+    # Federal Form 2441: actual out-of-pocket dependent/child care expenses paid.
+    # W-2 box 10 (employer FSA benefits) reduces the max claimable amount but is
+    # NOT the expense itself.  If 0, dependent care credit will not be computed.
+    dependent_care_expenses: Decimal = Decimal(0)
+
     computed_federal: ComputedFederalReturn | None = None
     computed_ny: ComputedNYReturn | None = None
 

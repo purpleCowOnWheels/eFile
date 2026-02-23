@@ -31,6 +31,7 @@ from pfile.parsers.f1099 import (
     FidelityConsolidatedParser,
 )
 from pfile.parsers.k1 import K1Parser
+from pfile.parsers.ssa1099 import SSA1099Parser
 from pfile.parsers.w2 import W2Parser
 
 
@@ -140,6 +141,9 @@ def parse(file: Path) -> list[AnyDocument]:
 
     if doc_type == DocumentType.F1099_R:
         return [F1099_R_Parser().parse(file)]
+
+    if doc_type == DocumentType.SSA_1099:
+        return [SSA1099Parser().parse(file)]
 
     raise UnknownDocumentError(
         f"Could not determine document type for: {file.name}\n"

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, TypeVar
+from typing import TypeVar
 
 from openai import OpenAI
 from pydantic import BaseModel
+
+from pfile.security import redact_pii
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -38,11 +40,14 @@ def extract_structured(
     """
     Send extracted PDF text to the LLM and parse the response into a Pydantic model.
 
+    PII (SSNs, EINs, account numbers) is redacted before the text is sent.
+
     Returns (parsed_model, confidence_scores) where confidence_scores maps
     field names to 0.0–1.0. The LLM is asked to include a `_confidence` dict
     alongside the data.
     """
     client = get_client()
+    safe_text = redact_pii(text)
 
     schema = model_class.model_json_schema()
     system = (
@@ -51,13 +56,15 @@ def extract_structured(
         "Return ONLY valid JSON matching the schema provided. "
         "For any field you cannot find or are uncertain about, use null. "
         "Include a '_confidence' object mapping each field name to a float 0.0-1.0 "
-        "indicating your confidence in the extracted value (1.0 = certain, 0.0 = not found)."
+        "indicating your confidence in the extracted value (1.0 = certain, 0.0 = not found). "
+        "Note: some identifying numbers have been redacted (shown as XXX-XX-XXXX etc.) "
+        "for privacy; return null for those fields."
     )
 
     user = (
         f"{prompt}\n\n"
         f"JSON Schema to match:\n{json.dumps(schema, indent=2)}\n\n"
-        f"Document text:\n{text}"
+        f"Document text:\n{safe_text}"
     )
 
     response = client.chat.completions.create(

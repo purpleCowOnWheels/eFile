@@ -1,4 +1,4 @@
-"""W-2 parser — deterministic extraction using pdfplumber + regex."""
+"""W-2 parser — deterministic extraction using PyMuPDF + regex."""
 
 from __future__ import annotations
 
@@ -130,21 +130,22 @@ class W2Parser(BaseParser[W2]):
 
         # ---------------------------------------------------------------
         # Box 12 — coded entries like "AA 3430.00", "C 162.00", "DD 34797.96"
-        # The PDF renders box 12 codes vertically (C/o/d/e on separate lines),
-        # so we find the actual CODE+AMOUNT pairs by looking for the pattern
-        # where a 1-2 letter code appears just before a dollar amount on the
-        # same line, excluding state abbreviations and common false positives.
+        # Only IRS-defined box 12 codes are valid.  This prevents false
+        # positives from state abbreviations, EINs, and other nearby text.
+        # Source: IRS W-2 instructions (Publication 15-A).
         # ---------------------------------------------------------------
-        _EXCLUDED_CODES = {
-            "NY", "NJ", "CT", "CA", "TX", "PA", "MA", "FL", "WA", "GA",
-            "EIN", "SSN", "TIN", "OMB", "LLC", "INC",
-        }
+        _VALID_BOX12_CODES: frozenset[str] = frozenset({
+            "A", "B", "C", "D", "E", "F", "G", "H",
+            "J", "K", "L", "M", "N", "P", "Q", "R",
+            "S", "T", "V", "W", "Y", "Z",
+            "AA", "BB", "DD", "EE", "FF", "GG", "HH",
+        })
         seen_box12: set[tuple[str, str]] = set()
         box12_entries: list[Box12Entry] = []
         for m in re.finditer(r"\b([A-Z]{1,2})\s+([\d,]+\.\d{2})\b", text):
             code, amt_str = m.group(1), m.group(2)
             key = (code, amt_str)
-            if code not in _EXCLUDED_CODES and key not in seen_box12:
+            if code in _VALID_BOX12_CODES and key not in seen_box12:
                 seen_box12.add(key)
                 box12_entries.append(Box12Entry(code=code, amount=_parse_amount(amt_str)))
         got("box12", box12_entries or None)

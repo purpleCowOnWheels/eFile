@@ -3,7 +3,7 @@ Prior-year tax return parser.
 
 Extracts structured data from a TurboTax-generated (or similar) PDF return
 using a two-pass approach:
-  1. pdfplumber extracts text from the key pages (1040, Schedule 1/2/3, IT-201)
+  1. PyMuPDF (fitz) extracts text from the key pages (1040, Schedule 1/2/3, IT-201)
   2. GPT-4o maps the text to the PriorYearReturn schema
 """
 
@@ -14,7 +14,7 @@ import re
 from decimal import Decimal
 from pathlib import Path
 
-import pdfplumber
+import fitz  # PyMuPDF
 
 from pfile.models.prior_year import (
     PriorYearForm1040,
@@ -23,6 +23,7 @@ from pfile.models.prior_year import (
     PriorYearScheduleD,
 )
 from pfile.parsers.llm import get_client
+from pfile.security import redact_pii
 
 # Pages we care about — we search by keyword so exact page numbers don't matter
 _WANT_KEYWORDS = {
@@ -69,9 +70,9 @@ def _collect_pages(pdf_path: Path) -> dict[str, str]:
     """Extract text from relevant pages, keyed by section name."""
     sections: dict[str, list[str]] = {k: [] for k in _WANT_KEYWORDS}
 
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            text = page.extract_text() or ""
+    with fitz.open(str(pdf_path)) as doc:
+        for page in doc:
+            text = page.get_text("text") or ""
             is_ny = _is_ny_page(text)
             for section, keywords in _WANT_KEYWORDS.items():
                 # Prevent NY pages bleeding into federal sections and vice-versa
@@ -336,7 +337,7 @@ def _llm_extract(sections: dict[str, str], tax_year: int) -> dict:
     for key, text in sections.items():
         if key not in priority_order:
             ordered.append(f"[SECTION: {key}]\n{text}")
-    combined_ordered = "\n\n========\n\n".join(ordered)
+    combined_ordered = redact_pii("\n\n========\n\n".join(ordered))
 
     prompt = f"""\
 Tax year: {tax_year}

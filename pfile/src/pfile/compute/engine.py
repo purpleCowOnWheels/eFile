@@ -154,10 +154,16 @@ def compute_federal_return(session: FilingSession, year: int = 2025) -> Computed
 
     ctc = child_tax_credit(session.dependents, agi, status, year)
 
-    # Dependent care: box 10 dependent care benefits from W-2 used as proxy for expenses.
-    dep_care_expenses = sum((w.box10_dependent_care for w in all_w2s), Decimal(0))
+    # Dependent care credit (Form 2441).
+    # The filer's actual out-of-pocket expenses are stored in session.dependent_care_expenses.
+    # Employer FSA benefits (W-2 box 10) reduce the claimable ceiling but are not the
+    # expense themselves — do NOT use box 10 as the expense amount.
+    employer_fsa = sum((w.box10_dependent_care for w in all_w2s), Decimal(0))
+    raw_dep_care = session.dependent_care_expenses
     n_qualifying_children = len([d for d in session.dependents if d.child_tax_credit_eligible])
-    dep_care_credit = dependent_care_credit(dep_care_expenses, n_qualifying_children, agi, year)
+    # Net expenses available for credit = actual expenses minus the FSA exclusion already used
+    net_dep_care = max(Decimal(0), raw_dep_care - employer_fsa)
+    dep_care_credit = dependent_care_credit(net_dep_care, n_qualifying_children, agi, year)
 
     total_credits = _round2(ctc + dep_care_credit)
     tax_after_credits = max(Decimal(0), total_tax - total_credits)

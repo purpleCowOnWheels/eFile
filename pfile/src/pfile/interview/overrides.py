@@ -52,6 +52,17 @@ def ask_federal_overrides(session: FilingSession) -> None:
         default=session.other_withholding,
     )
 
+    if any(d.child_tax_credit_eligible for d in session.dependents):
+        console.print(
+            "\n  [dim]Dependent/child care expenses (Form 2441).[/dim]\n"
+            "  [dim]Enter the total you paid out-of-pocket to a care provider.[/dim]\n"
+            "  [dim]Employer FSA benefits (W-2 box 10) are subtracted automatically.[/dim]"
+        )
+        session.dependent_care_expenses = _ask_decimal(
+            "  Total dependent care expenses paid (0 if none):",
+            default=session.dependent_care_expenses,
+        )
+
 
 def ask_ny_overrides(session: FilingSession) -> None:
     """Ask about NY-specific overrides: itemized deduction and credits."""
