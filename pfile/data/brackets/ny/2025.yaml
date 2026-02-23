@@ -1,0 +1,238 @@
+# New York State Income Tax Data — Tax Year 2025
+# Source: NY Tax Law §601; NY DTF Publication 88
+# URL: https://www.tax.ny.gov/pdf/publications/income/pub88.pdf
+# Note: NY does NOT inflation-adjust brackets annually.
+# Rates at the top four brackets (9.65% – 10.9%) are in effect 2021–2027
+# per the New York State FY 2021-22 Enacted Budget.
+# Last verified: 2025-01-01
+
+_meta:
+  source: "NY Tax Law §601; NY DTF Publication 88"
+  url: "https://www.tax.ny.gov/pdf/publications/income/pub88.pdf"
+  tax_year: 2025
+  last_verified: "2025-01-01"
+
+# ---------------------------------------------------------------------------
+# NY State income tax brackets
+# rate: marginal rate, min: lower bound (inclusive), base: tax on income at min
+# ---------------------------------------------------------------------------
+
+# Rate schedule brackets (used as the base in Tax Computation Worksheets).
+# Source: NY IT-201-I 2024 "New York State tax rate schedule"
+# NOTE: For NY AGI > $107,650 the Benefit Recapture worksheets (below) add
+# an additional amount on top of these brackets.  Do NOT apply these brackets
+# directly for high-income filers — always call ny_state_tax() which handles
+# both the rate schedule and the worksheet adjustments.
+ny_state:
+  single:
+    - { rate: 0.0400,  min: 0,        base: 0 }
+    - { rate: 0.0450,  min: 8500,     base: 340.00 }
+    - { rate: 0.0525,  min: 11700,    base: 484.00 }
+    - { rate: 0.0550,  min: 13900,    base: 600.00 }
+    - { rate: 0.0600,  min: 80650,    base: 4271.00 }
+    - { rate: 0.0685,  min: 215400,   base: 12356.00 }
+    - { rate: 0.0965,  min: 1077550,  base: 71413.00 }
+    - { rate: 0.1030,  min: 5000000,  base: 449929.00 }
+    - { rate: 0.1090,  min: 25000000, base: 2509929.00 }
+
+  mfj:
+    - { rate: 0.0400,  min: 0,        base: 0 }
+    - { rate: 0.0450,  min: 17150,    base: 686.00 }
+    - { rate: 0.0525,  min: 23600,    base: 976.00 }
+    - { rate: 0.0550,  min: 27900,    base: 1202.00 }
+    - { rate: 0.0600,  min: 161550,   base: 8553.00 }
+    - { rate: 0.0685,  min: 323200,   base: 18252.00 }
+    - { rate: 0.0965,  min: 2155350,  base: 143754.00 }
+    - { rate: 0.1030,  min: 5000000,  base: 418263.00 }
+    - { rate: 0.1090,  min: 25000000, base: 2478263.00 }
+
+  mfs:  # same thresholds as single
+    - { rate: 0.0400,  min: 0,        base: 0 }
+    - { rate: 0.0450,  min: 8500,     base: 340.00 }
+    - { rate: 0.0525,  min: 11700,    base: 484.00 }
+    - { rate: 0.0550,  min: 13900,    base: 600.00 }
+    - { rate: 0.0600,  min: 80650,    base: 4271.00 }
+    - { rate: 0.0685,  min: 215400,   base: 12356.00 }
+    - { rate: 0.0965,  min: 1077550,  base: 71413.00 }
+    - { rate: 0.1030,  min: 5000000,  base: 449929.00 }
+    - { rate: 0.1090,  min: 25000000, base: 2509929.00 }
+
+  hoh:
+    - { rate: 0.0400,  min: 0,        base: 0 }
+    - { rate: 0.0450,  min: 12800,    base: 512.00 }
+    - { rate: 0.0525,  min: 17650,    base: 730.25 }
+    - { rate: 0.0550,  min: 20900,    base: 901.00 }
+    - { rate: 0.0600,  min: 107650,   base: 5672.00 }
+    - { rate: 0.0685,  min: 269300,   base: 15371.00 }
+    - { rate: 0.0965,  min: 1616450,  base: 107651.00 }
+    - { rate: 0.1030,  min: 5000000,  base: 434163.00 }
+    - { rate: 0.1090,  min: 25000000, base: 2494163.00 }
+
+  qss:  # same as MFJ
+    - { rate: 0.0400,  min: 0,        base: 0 }
+    - { rate: 0.0450,  min: 17150,    base: 686.00 }
+    - { rate: 0.0525,  min: 23600,    base: 976.00 }
+    - { rate: 0.0550,  min: 27900,    base: 1202.00 }
+    - { rate: 0.0600,  min: 161550,   base: 8553.00 }
+    - { rate: 0.0685,  min: 323200,   base: 18252.00 }
+    - { rate: 0.0965,  min: 2155350,  base: 143754.00 }
+    - { rate: 0.1030,  min: 5000000,  base: 418263.00 }
+    - { rate: 0.1090,  min: 25000000, base: 2478263.00 }
+
+# ---------------------------------------------------------------------------
+# NY Benefit Recapture Worksheets (IT-201-I Tax Computation section)
+# Applies when NY AGI (line 33) is more than $107,650.
+# Source: NY IT-201-I 2024, worksheets 1–16.
+#
+# Structure per filing status:
+#   low_agi_threshold: recapture kicks in when NY AGI exceeds this
+#   flat_recapture: Worksheet 1/7/12 — flat-rate method for low taxable income
+#     taxable_ceiling: upper bound of taxable income for this worksheet
+#     flat_rate: rate applied to taxable income (e.g. 0.055 for MFJ)
+#     full_phase_agi: if AGI >= this, tax = taxable × flat_rate directly
+#   tiers: Worksheets 2–5/8–10/13–15 — standard recapture tiers
+#     taxable_min / taxable_max: range of taxable income
+#     agi_threshold: the AGI level at which phase-in begins
+#     recapture_base: fixed amount always added once in this tier
+#     incremental_benefit: additional amount fully phased in over $50,000 of AGI
+#   flat_top: final worksheet — flat 10.9% for AGI > $25M
+# ---------------------------------------------------------------------------
+benefit_recapture:
+  mfj:
+    low_agi_threshold: 107650
+    flat_recapture:
+      taxable_ceiling: 161550
+      flat_rate: 0.055
+      full_phase_agi: 157650
+    tiers:
+      - { taxable_min: 161550,  taxable_max: 323200,   agi_threshold: 161550,  recapture_base: 333,   incremental_benefit: 807 }
+      - { taxable_min: 323200,  taxable_max: 2155350,  agi_threshold: 323200,  recapture_base: 1140,  incremental_benefit: 2747 }
+      - { taxable_min: 2155350, taxable_max: 5000000,  agi_threshold: 2155350, recapture_base: 3887,  incremental_benefit: 60350 }
+      - { taxable_min: 5000000, taxable_max: 25000000, agi_threshold: 5000000, recapture_base: 64237, incremental_benefit: 32500 }
+    flat_top: { agi_threshold: 25000000, flat_rate: 0.109 }
+
+  single:
+    low_agi_threshold: 107650
+    flat_recapture:
+      taxable_ceiling: 215400
+      flat_rate: 0.06
+      full_phase_agi: 157650
+    tiers:
+      - { taxable_min: 215400,  taxable_max: 1077550,  agi_threshold: 215400,  recapture_base: 568,   incremental_benefit: 1831 }
+      - { taxable_min: 1077550, taxable_max: 5000000,  agi_threshold: 1077550, recapture_base: 2399,  incremental_benefit: 30172 }
+      - { taxable_min: 5000000, taxable_max: 25000000, agi_threshold: 5000000, recapture_base: 32571, incremental_benefit: 32500 }
+    flat_top: { agi_threshold: 25000000, flat_rate: 0.109 }
+
+  mfs:  # same parameters as single
+    low_agi_threshold: 107650
+    flat_recapture:
+      taxable_ceiling: 215400
+      flat_rate: 0.06
+      full_phase_agi: 157650
+    tiers:
+      - { taxable_min: 215400,  taxable_max: 1077550,  agi_threshold: 215400,  recapture_base: 568,   incremental_benefit: 1831 }
+      - { taxable_min: 1077550, taxable_max: 5000000,  agi_threshold: 1077550, recapture_base: 2399,  incremental_benefit: 30172 }
+      - { taxable_min: 5000000, taxable_max: 25000000, agi_threshold: 5000000, recapture_base: 32571, incremental_benefit: 32500 }
+    flat_top: { agi_threshold: 25000000, flat_rate: 0.109 }
+
+  hoh:
+    low_agi_threshold: 107650
+    flat_recapture:
+      taxable_ceiling: 269300
+      flat_rate: 0.06
+      full_phase_agi: 157650
+    tiers:
+      - { taxable_min: 269300,  taxable_max: 1616450,  agi_threshold: 269300,  recapture_base: 787,   incremental_benefit: 2289 }
+      - { taxable_min: 1616450, taxable_max: 5000000,  agi_threshold: 1616450, recapture_base: 3076,  incremental_benefit: 45261 }
+      - { taxable_min: 5000000, taxable_max: 25000000, agi_threshold: 5000000, recapture_base: 48337, incremental_benefit: 32500 }
+    flat_top: { agi_threshold: 25000000, flat_rate: 0.109 }
+
+  qss:  # same parameters as MFJ
+    low_agi_threshold: 107650
+    flat_recapture:
+      taxable_ceiling: 161550
+      flat_rate: 0.055
+      full_phase_agi: 157650
+    tiers:
+      - { taxable_min: 161550,  taxable_max: 323200,   agi_threshold: 161550,  recapture_base: 333,   incremental_benefit: 807 }
+      - { taxable_min: 323200,  taxable_max: 2155350,  agi_threshold: 323200,  recapture_base: 1140,  incremental_benefit: 2747 }
+      - { taxable_min: 2155350, taxable_max: 5000000,  agi_threshold: 2155350, recapture_base: 3887,  incremental_benefit: 60350 }
+      - { taxable_min: 5000000, taxable_max: 25000000, agi_threshold: 5000000, recapture_base: 64237, incremental_benefit: 32500 }
+    flat_top: { agi_threshold: 25000000, flat_rate: 0.109 }
+
+# ---------------------------------------------------------------------------
+# NYC resident income tax brackets (NY City Administrative Code §11-1701)
+# Applied to NY taxable income for NYC residents.
+# ---------------------------------------------------------------------------
+
+nyc:
+  single:
+    - { rate: 0.03078, min: 0,       base: 0 }
+    - { rate: 0.03762, min: 12000,   base: 369.36 }
+    - { rate: 0.03819, min: 25000,   base: 858.42 }
+    - { rate: 0.03876, min: 50000,   base: 1813.17 }
+
+  mfj:
+    - { rate: 0.03078, min: 0,       base: 0 }
+    - { rate: 0.03762, min: 21600,   base: 664.85 }
+    - { rate: 0.03819, min: 45000,   base: 1545.58 }
+    - { rate: 0.03876, min: 90000,   base: 3265.43 }
+
+  mfs:
+    - { rate: 0.03078, min: 0,       base: 0 }
+    - { rate: 0.03762, min: 12000,   base: 369.36 }
+    - { rate: 0.03819, min: 25000,   base: 858.42 }
+    - { rate: 0.03876, min: 50000,   base: 1813.17 }
+
+  hoh:
+    - { rate: 0.03078, min: 0,       base: 0 }
+    - { rate: 0.03762, min: 14400,   base: 443.23 }
+    - { rate: 0.03819, min: 30000,   base: 1030.35 }
+    - { rate: 0.03876, min: 60000,   base: 2177.05 }
+
+  qss:  # same as MFJ
+    - { rate: 0.03078, min: 0,       base: 0 }
+    - { rate: 0.03762, min: 21600,   base: 664.85 }
+    - { rate: 0.03819, min: 45000,   base: 1545.58 }
+    - { rate: 0.03876, min: 90000,   base: 3265.43 }
+
+# ---------------------------------------------------------------------------
+# Yonkers resident surcharge
+# Source: Yonkers City Code; NY DTF IT-201 instructions
+# ---------------------------------------------------------------------------
+
+yonkers:
+  resident_surcharge_rate: 0.16750    # 16.75% of NY state tax liability
+  nonresident_surcharge_rate: 0.00500 # 0.5% of NY wages for nonresidents
+
+# ---------------------------------------------------------------------------
+# NY standard deduction
+# Source: NY Tax Law §614; IT-201 instructions
+# Note: These amounts are fixed by statute and do not adjust for inflation.
+# ---------------------------------------------------------------------------
+
+standard_deduction:
+  single: 8000
+  mfj:    16050
+  mfs:    8000
+  hoh:    11200
+  qss:    16050
+
+# ---------------------------------------------------------------------------
+# NY pension and retirement income exclusions
+# Source: NY Tax Law §612(c)(3); IT-201 instructions
+# ---------------------------------------------------------------------------
+
+pension_exclusions:
+  government_pension_max: 20000  # Up to $20,000 for gov't pensions (NY, federal, military)
+  # Social Security benefits are fully excluded from NY income (Tax Law §612(c)(3-a))
+  social_security_excluded: true
+
+# ---------------------------------------------------------------------------
+# NY college savings (529) deduction
+# Source: NY Tax Law §612(c)(32)
+# ---------------------------------------------------------------------------
+
+college_savings_529:
+  single_max: 5000
+  mfj_max:    10000

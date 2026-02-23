@@ -1,0 +1,53 @@
+# IRS Mailing Addresses — Tax Year 2025 (returns filed in 2026)
+# Source: IRS Publication 17; IRS Where to File instructions
+# https://www.irs.gov/filing/where-to-file-paper-tax-returns-with-or-without-a-payment
+#
+# Addresses below apply to NY-state filers using Form 1040.
+
+_meta:
+  tax_year: 2025
+  form: "1040"
+  filer_state: "NY"
+  source: "IRS Where to File — NY, 2025"
+
+with_payment:
+  payable_to: "United States Treasury"
+  address:
+    line1: "Internal Revenue Service"
+    line2: "P.O. Box 931000"
+    city: "Louisville"
+    state: "KY"
+    zip: "40293-1000"
+  note: >
+    Make your check or money order payable to "United States Treasury."
+    Write your SSN, tax year (2025), and "Form 1040" on the memo line.
+    Attach Form 1040-V payment voucher to the front of your payment.
+    Do not staple or attach payment to your return.
+
+without_payment:
+  address:
+    line1: "Department of the Treasury"
+    line2: "Internal Revenue Service"
+    city: "Kansas City"
+    state: "MO"
+    zip: "64999-0002"
+
+online_payment:
+  direct_pay:
+    url: "https://www.irs.gov/payments/direct-pay"
+    note: "Free, direct from bank account. Use 'Balance Due' reason."
+  eftps:
+    url: "https://www.eftps.gov"
+    note: "Electronic Federal Tax Payment System — requires prior enrollment."
+  credit_card:
+    note: "Pay by debit/credit card at pay1040.com or officialpayments.com (fees apply)."
+
+estimated_tax:
+  note: >
+    If you expect to owe $1,000 or more next year, consider making quarterly
+    estimated tax payments using Form 1040-ES.
+  due_dates:
+    - { quarter: "Q1", due: "April 15, 2026" }
+    - { quarter: "Q2", due: "June 16, 2026" }
+    - { quarter: "Q3", due: "September 15, 2026" }
+    - { quarter: "Q4", due: "January 15, 2027" }

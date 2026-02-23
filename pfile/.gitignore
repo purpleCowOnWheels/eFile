@@ -1,0 +1,22 @@
+# Test documents (contain personal tax data — never commit)
+data/test_docs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+dist/
+*.egg-info/
+
+# Environment
+.env
+
+# pFile session data
+~/.pfile/
+
+# Poetry
+poetry.lock
+
+# OS
+.DS_Store
