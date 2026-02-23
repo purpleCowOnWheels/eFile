@@ -2,8 +2,8 @@
 Session detail view — the main workspace for a single filing session.
 
 Tabs:
-  1. Documents   — upload PDFs, see what's parsed
-  2. Compute     — run computation, tweak overrides
+  1. Documents   — upload PDFs (saved to disk immediately, no parsing)
+  2. Compute     — parse queued files + run tax computation
   3. Results     — 1040 / IT-201 summary + estimated tax
   4. Generate    — download filing package ZIP
 """
@@ -18,6 +18,7 @@ import streamlit as st
 
 from pfile.models.session import FilingSession
 from pfile.session.store import SessionStore
+from pfile.ui import uploads
 from pfile.ui.state import get_store
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -56,95 +57,78 @@ def render(session_id: str) -> None:
 # ── Tab: Documents ────────────────────────────────────────────────────────────
 
 def _render_documents(session: FilingSession, store: SessionStore) -> None:
+    sid = session.id
+
     st.subheader("Upload Tax Documents")
-    st.caption(
-        "Drop any PDF — W-2, 1099-INT/DIV/B/R, K-1 (1065/1120S), SSA-1099, "
-        "or Fidelity consolidated 1099. pFile auto-detects the type."
+    st.info(
+        "Drop your PDFs here — W-2, 1099-INT/DIV/B/R, K-1 (1065/1120S), SSA-1099, "
+        "Fidelity consolidated 1099. Files are saved instantly; pFile will parse them "
+        "when you run **Compute**.",
+        icon="ℹ️",
     )
 
     if session.is_mfj:
-        filer_choice = st.radio("Add documents for", ["Primary", "Spouse"], horizontal=True)
+        filer_choice = st.radio("Documents for", ["Primary", "Spouse"], horizontal=True)
         filer = "primary" if filer_choice == "Primary" else "spouse"
     else:
         filer = "primary"
 
+    # ── Upload widget — just saves bytes, no parsing ──────────────────────────
     uploaded = st.file_uploader(
-        "Upload PDF(s)",
+        "Drop PDFs here",
         type="pdf",
         accept_multiple_files=True,
-        key=f"upload_{session.id}_{filer}",
+        key=f"uploader_{sid}_{filer}",
+        label_visibility="collapsed",
     )
 
     if uploaded:
-        from pfile.models.session import DocumentSet
-        from pfile.parsers.dispatcher import UnknownDocumentError, parse
+        saved = []
+        for f in uploaded:
+            data = f.read()
+            if data:
+                uploads.save_upload(sid, filer, f.name, data)
+                saved.append(f.name)
+        if saved:
+            names = ", ".join(f"`{n}`" for n in saved)
+            st.success(f"Saved {len(saved)} file(s): {names} — they'll be parsed when you run Compute.")
 
-        doc_set = (session.primary_documents if filer == "primary" else session.spouse_documents) or DocumentSet()
-        added, errors = [], []
-
-        with st.spinner("Parsing documents…"):
-            with tempfile.TemporaryDirectory() as tmp:
-                for up_file in uploaded:
-                    tmp_path = Path(tmp) / up_file.name
-                    tmp_path.write_bytes(up_file.read())
-                    try:
-                        docs = parse(tmp_path)
-                        for doc in docs:
-                            doc_type = type(doc).__name__
-                            added.append(f"**{up_file.name}** → `{doc_type}`")
-                            doc_set = _attach(doc_set, doc)
-                    except UnknownDocumentError as e:
-                        errors.append(f"**{up_file.name}**: {e}")
-                    except Exception as e:
-                        errors.append(f"**{up_file.name}**: parse error — {e}")
-
-        if filer == "primary":
-            session.primary_documents = doc_set
-        else:
-            session.spouse_documents = doc_set
-        store.save(session)
-
-        for msg in added:
-            st.success(msg)
-        for msg in errors:
-            st.warning(msg)
-
-        if added:
-            st.rerun()
-
+    # ── Queue overview ────────────────────────────────────────────────────────
     st.divider()
-    _render_document_summary(session)
+
+    primary_queue = uploads.list_uploads(sid, "primary")
+    spouse_queue = uploads.list_uploads(sid, "spouse") if session.is_mfj else []
+
+    _render_queue("Primary", primary_queue, sid, "primary")
+    if session.is_mfj:
+        _render_queue("Spouse", spouse_queue, sid, "spouse")
+
+    # ── Already-parsed documents ──────────────────────────────────────────────
+    if session.primary_documents or session.spouse_documents:
+        st.divider()
+        st.subheader("Parsed Documents")
+        _render_parsed_summary(session)
 
 
-def _attach(doc_set, doc):
-    """Append a parsed document to the correct DocumentSet list."""
-    from pfile.models.documents import F1099_B, F1099_DIV, F1099_INT, F1099_R, K1_1065, K1_1120S, SSA1099, W2
+def _render_queue(label: str, queue: list[Path], session_id: str, filer: str) -> None:
+    if not queue:
+        st.caption(f"**{label}**: no files queued.")
+        return
 
-    # Build a mutable copy as a dict
-    d = doc_set.model_copy(deep=True)
-    if isinstance(doc, W2):
-        d.w2s.append(doc)
-    elif isinstance(doc, K1_1065):
-        d.k1_1065s.append(doc)
-    elif isinstance(doc, K1_1120S):
-        d.k1_1120ss.append(doc)
-    elif isinstance(doc, F1099_INT):
-        d.f1099_ints.append(doc)
-    elif isinstance(doc, F1099_DIV):
-        d.f1099_divs.append(doc)
-    elif isinstance(doc, F1099_B):
-        d.f1099_bs.append(doc)
-    elif isinstance(doc, F1099_R):
-        d.f1099_rs.append(doc)
-    elif isinstance(doc, SSA1099):
-        d.ssa_1099s.append(doc)
-    return d
+    st.markdown(f"**{label}** — {len(queue)} file(s) queued for parsing")
+    for path in queue:
+        c1, c2 = st.columns([6, 1])
+        with c1:
+            size_kb = path.stat().st_size // 1024
+            st.caption(f"📄 {path.name}  ({size_kb} KB)")
+        with c2:
+            if st.button("✕", key=f"rm_{session_id}_{filer}_{path.name}", help="Remove"):
+                uploads.remove_upload(session_id, filer, path.name)
+                st.rerun()
 
 
-def _render_document_summary(session: FilingSession) -> None:
-    st.subheader("Parsed Documents")
-
-    def _show_docset(label: str, ds):
+def _render_parsed_summary(session: FilingSession) -> None:
+    def _show(label: str, ds):
         if ds is None:
             return
         rows = []
@@ -165,24 +149,52 @@ def _render_document_summary(session: FilingSession) -> None:
             rows.append(("K-1 (1065)", k.partnership.name, f"${k.box1_ordinary_income:,.2f} ordinary"))
         for k in ds.k1_1120ss:
             rows.append(("K-1 (1120S)", k.corporation.name, f"${k.box1_ordinary_income:,.2f} ordinary"))
-
         if rows:
             st.markdown(f"**{label}**")
-            st.table({"Type": [r[0] for r in rows], "Payer / Employer": [r[1] for r in rows], "Key Amount": [r[2] for r in rows]})
+            st.table({
+                "Type": [r[0] for r in rows],
+                "Payer / Employer": [r[1] for r in rows],
+                "Key Amount": [r[2] for r in rows],
+            })
         else:
-            st.caption(f"{label}: No documents yet.")
+            st.caption(f"{label}: no documents parsed yet.")
 
-    _show_docset("Primary", session.primary_documents)
+    _show("Primary", session.primary_documents)
     if session.is_mfj:
-        _show_docset("Spouse", session.spouse_documents)
+        _show("Spouse", session.spouse_documents)
+
+
+def _attach(doc_set, doc):
+    """Append a parsed document to the correct DocumentSet list."""
+    from pfile.models.documents import F1099_B, F1099_DIV, F1099_INT, F1099_R, K1_1065, K1_1120S, SSA_1099, W2
+
+    d = doc_set.model_copy(deep=True)
+    if isinstance(doc, W2):
+        d.w2s.append(doc)
+    elif isinstance(doc, K1_1065):
+        d.k1_1065s.append(doc)
+    elif isinstance(doc, K1_1120S):
+        d.k1_1120ss.append(doc)
+    elif isinstance(doc, F1099_INT):
+        d.f1099_ints.append(doc)
+    elif isinstance(doc, F1099_DIV):
+        d.f1099_divs.append(doc)
+    elif isinstance(doc, F1099_B):
+        d.f1099_bs.append(doc)
+    elif isinstance(doc, F1099_R):
+        d.f1099_rs.append(doc)
+    elif isinstance(doc, SSA_1099):
+        d.ssa_1099s.append(doc)
+    return d
 
 
 # ── Tab: Compute ──────────────────────────────────────────────────────────────
 
 def _render_compute(session: FilingSession, store: SessionStore) -> None:
-    st.subheader("Overrides")
+    sid = session.id
 
-    with st.expander("Estimated / Withholding adjustments", expanded=False):
+    # Overrides
+    with st.expander("Estimated payments & withholding overrides", expanded=False):
         with st.form("overrides_form"):
             c1, c2 = st.columns(2)
             with c1:
@@ -201,43 +213,93 @@ def _render_compute(session: FilingSession, store: SessionStore) -> None:
                 session.estimated_tax_paid = Decimal(str(est_paid))
                 session.other_withholding = Decimal(str(other_wh))
                 store.save(session)
-                st.success("Overrides saved.")
+                st.success("Saved.")
                 st.rerun()
 
     st.divider()
-    st.subheader("Run Computation")
+
+    # Queue status banner
+    primary_q = uploads.list_uploads(sid, "primary")
+    spouse_q = uploads.list_uploads(sid, "spouse") if session.is_mfj else []
+    total_queued = len(primary_q) + len(spouse_q)
+
+    if total_queued:
+        st.info(
+            f"**{total_queued} PDF(s) queued** — they will be parsed automatically when you click Compute below.",
+            icon="📄",
+        )
+    elif not (session.primary_documents and session.primary_documents.all_documents()):
+        st.warning("No documents uploaded yet. Go to the **Documents** tab to add PDFs.", icon="⚠️")
 
     col_run, col_year = st.columns([2, 1])
     with col_year:
-        compute_year = st.selectbox("Tax year", [2025, 2024, 2023], index=0, key="compute_year")
+        compute_year = st.selectbox("Tax year", [2025, 2024, 2023], index=0)
     with col_run:
-        st.write("")  # spacer
-        run_clicked = st.button("▶ Compute taxes", type="primary", use_container_width=True)
+        st.write("")
+        run_clicked = st.button("▶ Parse & Compute", type="primary", use_container_width=True)
 
-    if run_clicked:
-        with st.spinner("Computing federal and NY returns…"):
-            try:
-                from pfile.compute.engine import compute_federal_return
-                from pfile.compute.state.engine_ny import compute_ny_return
+    if not run_clicked:
+        return
 
-                federal = compute_federal_return(session, year=int(compute_year))
-                session.computed_federal = federal
+    from pfile.models.session import DocumentSet
 
-                if session.needs_ny:
-                    ny = compute_ny_return(session, federal, year=int(compute_year))
-                    session.computed_ny = ny
+    parse_errors: list[str] = []
+
+    # ── Step 1: Parse queued PDFs ─────────────────────────────────────────────
+    if primary_q or spouse_q:
+        with st.status("Parsing uploaded documents…", expanded=True) as status:
+            for filer, queue in [("primary", primary_q), ("spouse", spouse_q)]:
+                if not queue:
+                    continue
+                st.write(f"Parsing {len(queue)} {filer} document(s)…")
+                doc_set = (
+                    session.primary_documents if filer == "primary" else session.spouse_documents
+                ) or DocumentSet()
+
+                docs, errors = uploads.parse_all(sid, filer)
+                for doc in docs:
+                    doc_set = _attach(doc_set, doc)
+                parse_errors.extend(errors)
+
+                if filer == "primary":
+                    session.primary_documents = doc_set
                 else:
-                    session.computed_ny = None
+                    session.spouse_documents = doc_set
 
-                from pfile.models.session import SessionStatus
-                session.status = SessionStatus.COMPUTED
-                store.save(session)
-                st.success("✅ Computation complete — check the **Results** tab.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Computation failed: {e}")
-                import traceback
-                st.code(traceback.format_exc())
+                for e in errors:
+                    st.warning(e)
+
+            status.update(
+                label=f"Parsed {len(primary_q) + len(spouse_q)} file(s)"
+                      + (f" — {len(parse_errors)} error(s)" if parse_errors else ""),
+                state="complete" if not parse_errors else "error",
+            )
+
+    # ── Step 2: Run tax engine ────────────────────────────────────────────────
+    with st.spinner("Computing federal and NY returns…"):
+        try:
+            from pfile.compute.engine import compute_federal_return
+            from pfile.compute.state.engine_ny import compute_ny_return
+            from pfile.models.session import SessionStatus
+
+            federal = compute_federal_return(session, year=int(compute_year))
+            session.computed_federal = federal
+
+            if session.needs_ny:
+                ny = compute_ny_return(session, federal, year=int(compute_year))
+                session.computed_ny = ny
+            else:
+                session.computed_ny = None
+
+            session.status = SessionStatus.COMPUTED
+            store.save(session)
+
+            st.success("✅ Done — check the **Results** tab.")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Computation failed: {e}")
+            import traceback
+            st.code(traceback.format_exc())
 
 
 # ── Tab: Results ──────────────────────────────────────────────────────────────
@@ -250,7 +312,6 @@ def _render_results(session: FilingSession) -> None:
     f = session.computed_federal
     form = f.form_1040
 
-    # Top-line metrics
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("AGI", f"${form.line11_agi:,.0f}")
     m2.metric("Taxable income", f"${form.line15_taxable_income:,.0f}")
@@ -261,7 +322,6 @@ def _render_results(session: FilingSession) -> None:
         m4.metric("Refund 🟢", f"${f.refund:,.0f}")
 
     st.divider()
-
     col_fed, col_ny = st.columns(2)
 
     with col_fed:
@@ -280,19 +340,18 @@ def _render_results(session: FilingSession) -> None:
                 c1, c2 = st.columns(2)
                 c1.metric("Net short-term", f"${sd.net_short_term:,.2f}")
                 c2.metric("Net long-term", f"${sd.net_long_term:,.2f}")
-                if sd.short_term_transactions or sd.long_term_transactions:
-                    all_txns = [
-                        {"Term": t.term, "Description": t.description,
-                         "Proceeds": f"${t.proceeds:,.2f}", "Basis": f"${t.cost_basis:,.2f}",
-                         "Gain/Loss": f"${t.gain_loss:,.2f}"}
-                        for t in (sd.short_term_transactions + sd.long_term_transactions)
-                    ]
-                    st.dataframe(all_txns, use_container_width=True)
+                txns = sd.short_term_transactions + sd.long_term_transactions
+                if txns:
+                    st.dataframe(
+                        [{"Term": t.term, "Description": t.description,
+                          "Proceeds": f"${t.proceeds:,.2f}", "Basis": f"${t.cost_basis:,.2f}",
+                          "Gain/Loss": f"${t.gain_loss:,.2f}"} for t in txns],
+                        use_container_width=True,
+                    )
 
         if f.schedule_e:
             with st.expander("Schedule E — K-1 Pass-through"):
-                se = f.schedule_e
-                for entry in se.entries:
+                for entry in f.schedule_e.entries:
                     st.write(f"• **{entry.entity_name}**: ${entry.net_income:,.2f}")
 
     with col_ny:
@@ -302,23 +361,21 @@ def _render_results(session: FilingSession) -> None:
             _it201_table(ny)
         else:
             st.subheader("NY IT-201")
-            st.caption("Not applicable (no NY residency detected).")
+            st.caption("Not applicable.")
 
-    # 1040-ES
     if form.line24_total_tax > 0:
         st.divider()
         st.subheader(f"1040-ES — {session.tax_year + 1} Estimated Payments")
         try:
             from pfile.compute.estimated_tax import compute_estimated_tax_for_year
             plan = compute_estimated_tax_for_year(f, session.filing_status, session.tax_year)
-
             em1, em2, em3 = st.columns(3)
             em1.metric("Prior-year tax", f"${plan.prior_year_tax:,.0f}")
             em2.metric("Safe-harbor rate", f"{int(plan.safe_harbor_rate * 100)}%")
             em3.metric("Annual estimate", f"${plan.annual_estimate:,.0f}")
-
             rows = [
-                {"Quarter": f"Q{q.quarter}", "Due Date": q.due_date.strftime("%b %-d, %Y"), "Payment": f"${q.payment:,.2f}"}
+                {"Quarter": f"Q{q.quarter}", "Due Date": q.due_date.strftime("%b %-d, %Y"),
+                 "Payment": f"${q.payment:,.2f}"}
                 for q in plan.quarters
             ]
             st.dataframe(rows, use_container_width=True, hide_index=True)
@@ -346,8 +403,10 @@ def _1040_table(form) -> None:
         ("26  Estimated payments", form.line26_estimated_payments),
         ("33  Total payments", form.line33_total_payments),
     ]
-    data = {"Line": [r[0] for r in rows], "Amount": [f"${r[1]:,.2f}" for r in rows]}
-    st.dataframe(data, use_container_width=True, hide_index=True)
+    st.dataframe(
+        {"Line": [r[0] for r in rows], "Amount": [f"${r[1]:,.2f}" for r in rows]},
+        use_container_width=True, hide_index=True,
+    )
 
 
 def _it201_table(ny) -> None:
@@ -361,8 +420,10 @@ def _it201_table(ny) -> None:
         ("NY total tax", ny.total_ny_tax),
         ("NY total payments", ny.total_ny_payments),
     ]
-    data = {"Line": [r[0] for r in rows], "Amount": [f"${r[1]:,.2f}" for r in rows]}
-    st.dataframe(data, use_container_width=True, hide_index=True)
+    st.dataframe(
+        {"Line": [r[0] for r in rows], "Amount": [f"${r[1]:,.2f}" for r in rows]},
+        use_container_width=True, hide_index=True,
+    )
     st.divider()
     if ny.balance_due > 0:
         st.metric("NY Balance due", f"${ny.balance_due:,.2f}")
@@ -381,13 +442,12 @@ def _render_generate(session: FilingSession, store: SessionStore) -> None:
 
     fill_forms = st.checkbox(
         "Fill official IRS 1040 & NY IT-201 PDFs (requires downloaded form templates)",
-        value=False,
     )
-    no_es = st.checkbox("Skip 1040-ES estimated tax vouchers", value=False)
+    no_es = st.checkbox("Skip 1040-ES estimated tax vouchers")
 
     st.caption(
-        "The package ZIP includes a cover sheet, line-item data sheets, "
-        "payment vouchers, and (optionally) filled official PDFs."
+        "The ZIP includes a cover sheet, line-item data sheets, payment vouchers, "
+        "and optionally filled official PDFs."
     )
 
     if st.button("⬇ Build & Download Package", type="primary"):
@@ -395,12 +455,11 @@ def _render_generate(session: FilingSession, store: SessionStore) -> None:
             try:
                 from pfile.output.package import generate_package
                 with tempfile.TemporaryDirectory() as tmp:
-                    out_dir = Path(tmp)
                     zip_path = generate_package(
                         session=session,
                         federal=session.computed_federal,
                         ny=session.computed_ny,
-                        output_dir=out_dir,
+                        output_dir=Path(tmp),
                         fill_forms=fill_forms,
                         include_estimated_tax=not no_es,
                     )
